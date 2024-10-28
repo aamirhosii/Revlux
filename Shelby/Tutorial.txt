@@ -1,0 +1,4 @@
+Download Expo Go on apple store / android store.
+Type "npm start" into the terminal
+Follow the QR code that will be in the terminal
+Open the Expo Go app (Must be on the same wifi as your terminal wifi)
