@@ -1,6 +1,8 @@
 //This is Account.js within /Shelby/src/screens:
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { StyleSheet, Text, View, SafeAreaView, TextInput, Button } from 'react-native';
+import publicIP from 'react-native-public-ip';
+import axios from 'axios';
 
 export default function Account({ navigation }) {
   const [email, setEmail] = useState('');
@@ -8,6 +10,7 @@ export default function Account({ navigation }) {
   const [message, setMessage] = useState(''); // State to manage the message
   const [ipAddress, setIpAddress] = useState('');
 
+  //unused
   useEffect(() => {
     // Fetch the public IP address when the component is mounted
     publicIP()
@@ -24,17 +27,24 @@ export default function Account({ navigation }) {
     // Handle sign-in logic here
     console.log('Sign In:', email, password);
     try {
-      const response = await axios.post(`http://${ipAddress}:3000/api/users/create-account`, { email, password });
+      const response = await axios.post(`http://100.70.113.161:3000/api/users/login`, { email, password });
       
       // If successful, display a success message
       setMessage(response.data.message);
+      console.log('Login Success:', response.data); // Debugging log
     } catch (error) {
       if (error.response) {
         // If the server responded with a status other than 2xx
         setMessage(error.response.data.message);
-      } else {
+        console.log('Error response from server:', error.response);
+      } 
+      else if (error.request) {
+        setMessage('No response from server. Please try again.');
+      }
+      else {
         // Network or other errors
         setMessage('Error logging in. Please try again.');
+        console.log('Network/Other Error:', error.message);
       }
     }
   };

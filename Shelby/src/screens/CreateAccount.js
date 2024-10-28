@@ -1,7 +1,8 @@
 //This is CreateAccount.js within /Shelby/src/screens:
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { StyleSheet, Text, View, SafeAreaView, TextInput, Button } from 'react-native';
 import axios from 'axios';
+import publicIP from 'react-native-public-ip';
 
 //const db = require('../../database');
 
@@ -40,10 +41,10 @@ export default function CreateAccount() {
         {
           // Get the IP address of the client
           //const ipAddress = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
-          //console.log('Client IP Address:', ipAddress);
+          console.log('Client IP Address:', ipAddress);
 
-          //const response = await axios.post('http://100.70.113.161:3000/api/users/create-account', {
-          const response = await axios.post(`http://${ipAddress}:3000/api/users/create-account`, {
+          const response = await axios.post('http://100.70.113.161:3000/api/users/create-account', {
+          //const response = await axios.post(`http://${ipAddress}:3000/api/users/create-account`, {
             firstName,
             lastName,
             email,
