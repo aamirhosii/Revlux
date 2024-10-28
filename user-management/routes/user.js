@@ -16,7 +16,9 @@ const userController = require('../controllers/userController');
 
 // Define routes for user management
 router.post('/create-account', userController.createAccount);
-// Add more routes as needed (e.g., login, get user info)
+
+// Add this route for logging in users
+router.post('/login', userController.login);
 
 module.exports = router;
 console.log('User routes loaded');
