@@ -54,6 +54,7 @@ app.post('/create-account', async (req, res) => {
     }
 });
 
+
 // Make the pool available for routes
 /*app.use((req, res, next) => {
     req.pool = pool;
