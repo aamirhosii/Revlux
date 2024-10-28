@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   StyleSheet,
   Text,
@@ -8,168 +8,135 @@ import {
   SafeAreaView,
   Dimensions,
   TouchableOpacity,
+  ImageBackground,
 } from 'react-native';
-import { Button, Card, Icon } from 'react-native-elements';
+import { Button, Icon } from 'react-native-elements';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Animatable from 'react-native-animatable';
-import ConfettiCannon from 'react-native-confetti-cannon';
-import logo from './assets/logo.png';
 
 const { width, height } = Dimensions.get('window');
 
-const services = [
-  {
-    id: 1,
-    title: 'Exterior Detailing',
-    description: 'Complete exterior cleaning and polishing.',
-    image: require('./assets/services/exterior.png'),
-  },
-  {
-    id: 2,
-    title: 'Interior Detailing',
-    description: 'Deep cleaning of the interior spaces.',
-    image: require('./assets/services/interior.png'),
-  },
-  {
-    id: 3,
-    title: 'Full-Service Package',
-    description: 'Comprehensive detailing inside and out.',
-    image: require('./assets/services/full.png'),
-  },
-];
-
-export default function HomeScreen() {
-  const [confetti, setConfetti] = useState(false);
-
-  const handleAppointment = () => {
-    // Your booking logic here
-    setConfetti(true);
-    setTimeout(() => setConfetti(false), 3000);
-  };
+export default function HomeScreen({ navigation }) {
+  const renderSection = (title, description, buttonText, onPress, imagePath) => (
+    <ImageBackground
+      source={imagePath}
+      style={styles.sectionBackground}
+    >
+      <LinearGradient
+        colors={['rgba(0,0,0,0.5)', 'rgba(0,0,0,0.8)']}
+        style={styles.gradient}
+      >
+        <View style={styles.sectionContent}>
+          <Text style={styles.sectionTitle}>{title}</Text>
+          <Text style={styles.sectionDescription}>{description}</Text>
+          <TouchableOpacity style={styles.sectionButton} onPress={onPress}>
+            <Text style={styles.sectionButtonText}>{buttonText}</Text>
+            <Icon name="chevron-right" type="feather" color="#F5C518" size={20} />
+          </TouchableOpacity>
+        </View>
+      </LinearGradient>
+    </ImageBackground>
+  );
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <LinearGradient
-        colors={['#1a1a1a', '#333333']}
-        style={styles.background}
-      >
-        <ScrollView contentContainerStyle={styles.container}>
+      <ScrollView contentContainerStyle={styles.scrollView}>
+        <View style={styles.container}>
           <Animatable.Image
-            animation="fadeInDown"
-            duration={1000}
-            source={logo}
+            animation="fadeIn"
+            duration={1500}
+            source={require('./assets/logo.png')}
             style={styles.logo}
           />
-          <Animatable.Text
-            animation="fadeInUp"
-            delay={500}
-            style={styles.title}
+
+          <ImageBackground
+            source={require('./assets/services/interior.png')}
+            style={styles.heroBanner}
           >
-            Shelby Auto Detailing
-          </Animatable.Text>
-          <Animatable.Text
-            animation="fadeInUp"
-            delay={700}
-            style={styles.subtitle}
-          >
-            Premier Detailing Services in Canada
-          </Animatable.Text>
-          <View style={styles.servicesSection}>
-            {services.map(service => (
-              <Animatable.View
-                animation="fadeInUp"
-                delay={service.id * 200}
-                key={service.id}
-              >
-                <Card containerStyle={styles.card}>
-                  <Image source={service.image} style={styles.serviceImage} />
-                  <Card.Title style={styles.cardTitle}>{service.title}</Card.Title>
-                  <Card.Divider />
-                  <Text style={styles.cardDescription}>{service.description}</Text>
-                  <Button
-                    title="Learn More"
-                    buttonStyle={styles.learnMoreButton}
-                    icon={
-                      <Icon
-                        name="arrow-right"
-                        type="feather"
-                        color="#fff"
-                        size={20}
-                        iconStyle={{ marginLeft: 10 }}
-                      />
-                    }
-                  />
-                </Card>
+            <LinearGradient
+              colors={['rgba(0,0,0,0.5)', 'rgba(0,0,0,0.8)']}
+              style={styles.gradient}
+            >
+              <Animatable.View animation="fadeInUp" delay={500} style={styles.heroContent}>
+                <Text style={styles.heroTitle}>Toronto's Premium Mobile Car Detailing Service</Text>
+                <Text style={styles.heroSubtitle}>Premium Car Detailing, Delivered to Your Doorsteps.</Text>
               </Animatable.View>
-            ))}
-          </View>
-          <View style={styles.buttonsContainer}>
-            <Animatable.View animation="fadeInUp" delay={1000}>
-              <Button
-                title="View Our Services"
-                buttonStyle={styles.button}
-                icon={
-                  <Icon
-                    name="list"
-                    type="feather"
-                    color="#fff"
-                    size={20}
-                    iconStyle={{ marginRight: 10 }}
-                  />
-                }
-                onPress={() => {}}
-              />
-            </Animatable.View>
-            <Animatable.View animation="fadeInUp" delay={1200}>
-              <Button
-                title="Book an Appointment"
-                buttonStyle={styles.button}
-                icon={
-                  <Icon
-                    name="calendar"
-                    type="feather"
-                    color="#fff"
-                    size={20}
-                    iconStyle={{ marginRight: 10 }}
-                  />
-                }
-                onPress={handleAppointment}
-              />
-            </Animatable.View>
-            <Animatable.View animation="fadeInUp" delay={1400}>
-              <Button
-                title="Contact Us"
-                buttonStyle={styles.button}
-                icon={
-                  <Icon
-                    name="phone"
-                    type="feather"
-                    color="#fff"
-                    size={20}
-                    iconStyle={{ marginRight: 10 }}
-                  />
-                }
-                onPress={() => {}}
-              />
-            </Animatable.View>
-          </View>
-          <View style={styles.footer}>
-            <Text style={styles.footerText}>
-              © 2024 Shelby Auto Detailing. All rights reserved.
+            </LinearGradient>
+          </ImageBackground>
+
+          <View style={styles.descriptionSection}>
+            <Text style={styles.descriptionTitle}>Expert Mobile Car Detailing at Your Convenience</Text>
+            <View style={styles.featuresContainer}>
+              {['Right in your Driveway', 'Mobile Detailing', 'Premium Care, Budget-Friendly'].map((feature, index) => (
+                <View key={index} style={styles.featureItem}>
+                  <Icon name="check-circle" type="feather" color="#F5C518" size={20} />
+                  <Text style={styles.featureText}>{feature}</Text>
+                </View>
+              ))}
+            </View>
+            <Text style={styles.descriptionText}>
+              Shelby Auto Detailing brings professional car detailing directly to you, eliminating the hassle of traveling to a shop. Experience exceptional mobile detailing for your vehicle without leaving home. Proudly serving Toronto and the GTA.
             </Text>
           </View>
-          {confetti && (
-            <ConfettiCannon
-              count={100}
-              origin={{ x: -10, y: 0 }}
-              fadeOut={true}
-              autoStart={true}
-              explosionSpeed={350}
-              fallSpeed={3000}
-            />
+
+          {renderSection(
+            "About Us",
+            "Shelby Mobile Auto Detailing brings top-tier car detailing solutions right to your doorstep, combining luxury and convenience without breaking the bank. Our expert team pampers your vehicle with meticulous attention, ensuring it looks its absolute best. Enjoy a premium detailing experience that's both affordable and hassle-free.",
+            "About Us",
+            () => navigation.navigate('AboutScreen'),
+            require('./assets/services/exterior.png')
           )}
-        </ScrollView>
-      </LinearGradient>
+
+          {renderSection(
+            "MOBILE DETAILING",
+            "Experience the convenience of our mobile detailing services, where our professionals bring meticulous care directly to your doorstep. From interior deep cleans to exterior polishing, we ensure your car looks and feels brand new.",
+            "Explore Detailing",
+            () => navigation.navigate('Detailing'),
+            require('./assets/services/detailing.png')
+          )}
+
+          {renderSection(
+            "MOBILE CERAMIC COATING",
+            "Protect your vehicle with our premium ceramic coating services. Our experts apply advanced coatings to provide long-lasting shine and superior protection, all from the comfort of your home. Ensure your car's finish stays immaculate with our top-tier service.",
+            "Explore Coating",
+            () => navigation.navigate('Coating'),
+            require('./assets/services/coating.png')
+          )}
+
+          <View style={styles.buttonsContainer}>
+            <Button
+              title="View Our Services"
+              buttonStyle={[styles.button, styles.goldButton]}
+              titleStyle={styles.buttonTitle}
+              icon={
+                <Icon
+                  name="list"
+                  type="feather"
+                  color="#000"
+                  size={20}
+                  iconStyle={{ marginRight: 10 }}
+                />
+              }
+              onPress={() => navigation.navigate('Services')}
+            />
+            <Button
+              title="Book an Appointment"
+              buttonStyle={[styles.button, styles.goldButton]}
+              titleStyle={styles.buttonTitle}
+              icon={
+                <Icon
+                  name="calendar"
+                  type="feather"
+                  color="#000"
+                  size={20}
+                  iconStyle={{ marginRight: 10 }}
+                />
+              }
+              onPress={() => navigation.navigate('Booking')}
+            />
+          </View>
+        </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -177,106 +144,122 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
+    backgroundColor: '#1a1a1a',
   },
-  background: {
-    flex: 1,
-    width: width,
-    height: height,
+  scrollView: {
+    flexGrow: 1,
   },
   container: {
-    flexGrow: 1,
+    flex: 1,
     alignItems: 'center',
-    padding: 20,
   },
   logo: {
-    width: 180,
-    height: 180,
+    width: 150,
+    height: 150,
     resizeMode: 'contain',
-    marginBottom: 20,
+    marginVertical: 20,
   },
-  title: {
-    fontSize: 32,
-    fontWeight: '700',
+  heroBanner: {
+    width: '100%',
+    height: 300,
+  },
+  gradient: {
+    flex: 1,
+    justifyContent: 'center',
+    padding: 20,
+  },
+  heroContent: {
+    alignItems: 'center',
+  },
+  heroTitle: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#F5C518',
+    textAlign: 'center',
     marginBottom: 10,
-    textAlign: 'center',
-    color: '#F5C518', // Gold color for premium look
-    fontFamily: 'Helvetica Neue',
   },
-  subtitle: {
+  heroSubtitle: {
     fontSize: 18,
-    textAlign: 'center',
-    marginBottom: 30,
-    color: '#e0e0e0', // Light grey subtitle
-    fontFamily: 'Helvetica Neue',
-  },
-  servicesSection: {
-    width: '100%',
-    marginBottom: 30,
-  },
-  card: {
-    borderRadius: 20,
-    padding: 0,
-    overflow: 'hidden',
-    borderWidth: 0,
-    marginBottom: 20,
-    backgroundColor: '#2b2b2b', // Dark card background
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.8,
-    shadowRadius: 10,
-    elevation: 5, // For Android shadow
-  },
-  serviceImage: {
-    width: '100%',
-    height: 180,
-    resizeMode: 'cover',
-  },
-  cardTitle: {
-    marginTop: 10,
     color: '#fff',
-    fontSize: 20,
-    fontWeight: '600',
+    textAlign: 'center',
   },
-  cardDescription: {
+  descriptionSection: {
+    padding: 20,
+    backgroundColor: '#2a2a2a',
+    borderRadius: 10,
+    margin: 20,
+  },
+  descriptionTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#F5C518',
     marginBottom: 15,
-    textAlign: 'left',
-    paddingHorizontal: 15,
-    color: '#ccc', // Soft grey text for description
+  },
+  featuresContainer: {
+    marginBottom: 15,
+  },
+  featureItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  featureText: {
+    color: '#fff',
+    marginLeft: 10,
     fontSize: 16,
   },
-  learnMoreButton: {
-    backgroundColor: '#F5C518', // Gold accent
-    marginHorizontal: 15,
+  descriptionText: {
+    color: '#e0e0e0',
+    fontSize: 16,
+    lineHeight: 24,
+  },
+  sectionBackground: {
+    width: '100%',
+    height: 300,
+    marginBottom: 20,
+  },
+  sectionContent: {
+    padding: 20,
+  },
+  sectionTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#F5C518',
+    marginBottom: 10,
+  },
+  sectionDescription: {
+    color: '#fff',
+    fontSize: 16,
     marginBottom: 15,
-    borderRadius: 10,
-    paddingVertical: 12,
+  },
+  sectionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(245, 197, 24, 0.2)',
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+    borderRadius: 25,
+    alignSelf: 'flex-start',
+  },
+  sectionButtonText: {
+    color: '#F5C518',
+    fontWeight: 'bold',
+    marginRight: 5,
   },
   buttonsContainer: {
-    width: '100%',
+    width: '90%',
     marginBottom: 40,
   },
   button: {
-    backgroundColor: '#F5C518', // Gold accent
-    paddingVertical: 15,
-    borderRadius: 10,
     marginBottom: 15,
-    width: '100%',
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
+    borderRadius: 25,
+    paddingVertical: 15,
   },
-  footer: {
-    marginTop: 20,
-    paddingVertical: 10,
-    borderTopWidth: 1,
-    borderColor: '#444',
-    width: '100%',
-    alignItems: 'center',
+  goldButton: {
+    backgroundColor: '#F5C518',
   },
-  footerText: {
-    color: '#777',
-    fontSize: 14,
-    textAlign: 'center',
-    fontFamily: 'Helvetica Neue',
+  buttonTitle: {
+    color: '#000',
+    fontWeight: 'bold',
   },
 });
