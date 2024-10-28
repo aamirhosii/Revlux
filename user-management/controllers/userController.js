@@ -31,6 +31,11 @@ exports.createAccount = async (req, res) => {
     // Hash the password
     const passwordHash = bcrypt.hashSync(password, 8);
 
+    // Save user data to the database
+    await pool.query(
+        'INSERT INTO users (first_name, last_name, email, phone_number, password'
+    )
+
     // Save user data (You would typically save this to a database)
     const newUser = {
         firstName,
@@ -41,8 +46,6 @@ exports.createAccount = async (req, res) => {
         createdAt: new Date(),
     };
 
-    await pool.query('INSERT INTO users (first_name, last_name, email, phone_number, password_hash) VALUES (?, ?, ?, ?, ?)', 
-        [firstName, lastName, email, phoneNumber, passwordHash]);
 
     users.push(newUser); // Store user (replace with DB logic)
 
@@ -51,6 +54,36 @@ exports.createAccount = async (req, res) => {
     catch (error) 
     {
         console.error('Error creating account:', error);
+        return res.status(500).json({ message: 'Internal server error' });
+    }
+};
+
+
+//Login Logic
+exports.login = async (req, res) => {
+    const { email, password } = req.body;
+
+    try
+    {
+        const [rows] = await pool.query('SELECT * FROM users WHERE email = ?', [email]);
+        const user = rows[0];
+
+        if(!user)
+        {
+            return res.status(404).json({ message: 'User not found'});
+        }
+
+        // Compare the provided password with the hashed password
+        const isMatch = bcrypt.compareSync(password, user.password_hash);
+
+        if(!isMatch)
+        {
+            return res.status(401).json({ message: 'Invalid credentials' });
+        }
+
+        return res.status(200).json({ message: 'Login successful!' });
+    } catch (error) {
+        console.error('Error logging in:', error);
         return res.status(500).json({ message: 'Internal server error' });
     }
 };
