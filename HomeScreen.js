@@ -59,6 +59,11 @@ export default function HomeScreen({ navigation }) {
             onPress={() => navigation.navigate('Services')}
           />
           <Section
+            title="Check Your Area"
+            iconName="earth"
+            onPress={() => navigation.navigate('Availability')}
+          />
+          <Section
             title="Make a Booking"
             iconName="calendar-outline"
             onPress={() => navigation.navigate('Booking')}
