@@ -2,6 +2,8 @@ import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 
+import LoginScreen from './LoginScreen';
+import SignupScreen from './SignupScreen';
 import HomeScreen from './HomeScreen';
 import AboutScreen from './AboutScreen';
 import DetailingScreen from './DetailingScreen';
@@ -25,6 +27,8 @@ export default function AppNavigator() {
           },
         }}
       >
+        <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="Signup" component={SignupScreen} options={{ title: 'Create Account' }} />
         <Stack.Screen name="Home" component={HomeScreen} options={{ title: 'Shelby Auto Detailing' }} />
         <Stack.Screen name="AboutScreen" component={AboutScreen} options={{ title: 'About Us' }} />
         <Stack.Screen name="Detailing" component={DetailingScreen} options={{ title: 'Mobile Detailing' }} />
