@@ -68,14 +68,14 @@ export default function ServicesScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#1a1a1a',
+    backgroundColor: '#FFF', // Set to white background
   },
   scrollView: {
     flexGrow: 1,
     paddingVertical: 20,
   },
   serviceContainer: {
-    backgroundColor: '#333',
+    backgroundColor: '#F5F5F5', // Light gray for a card-like effect
     padding: 20,
     marginHorizontal: 15,
     marginBottom: 15,
@@ -84,15 +84,15 @@ const styles = StyleSheet.create({
   serviceTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#FFF',
+    color: '#333', // Darker color for contrast
   },
   serviceDescription: {
     fontSize: 16,
-    color: '#CCC',
+    color: '#666', // Dark gray color for contrast
     marginTop: 5,
   },
   optionContainer: {
-    backgroundColor: '#444',
+    backgroundColor: '#F5F5F5', // Light gray for a card-like effect
     padding: 20,
     marginHorizontal: 15,
     marginBottom: 15,
@@ -101,11 +101,11 @@ const styles = StyleSheet.create({
   optionTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#FFF',
+    color: '#333',
   },
   optionDescription: {
     fontSize: 16,
-    color: '#CCC',
+    color: '#666',
     marginTop: 5,
   },
 });
