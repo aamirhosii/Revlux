@@ -1,6 +1,7 @@
+// ServicesScreen.js
 import React from 'react';
-import { View, Text, StyleSheet, SafeAreaView, ScrollView } from 'react-native';
 import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
+import { View, Text, StyleSheet, SafeAreaView, ScrollView } from 'react-native';
 
 const Tab = createMaterialTopTabNavigator();
 
