@@ -11,6 +11,7 @@ import CoatingScreen from './CoatingScreen';
 import ServicesScreen from './ServicesScreen';
 import BookingScreen from './BookingScreen';
 
+
 const Stack = createStackNavigator();
 
 export default function AppNavigator() {
