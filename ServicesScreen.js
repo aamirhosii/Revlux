@@ -1,7 +1,7 @@
 // ServicesScreen.js
-import React from 'react';
+import React, { useState, useRef } from 'react';
 import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
-import { View, Text, StyleSheet, SafeAreaView, ScrollView, Image, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, ScrollView, Image, TouchableOpacity, Animated } from 'react-native';
 
 const Tab = createMaterialTopTabNavigator();
 
@@ -11,8 +11,8 @@ function PackagesScreen() {
       id: 'core',
       name: 'CORE™',
       image: require('./assets/core-car.png'), // Replace with your image path
-      description: 'A basic detailing package providing essential cleaning and protection.',
-      duration: '45-60 minutes',
+      description: 'Comprehensive Vacuum Cleaning\n\nDashboard Dusting & Wipe Down\n\nDoor Panel Cleaning\n\nWindow & Mirror Cleaning\n\nFloor Mat Cleaning',
+      duration: '90 Minutes*\n\nAdditional 25 Minutes for 3 - Row Vehicles',
       price: '$69',
     },
     {
@@ -39,29 +39,67 @@ function PackagesScreen() {
       <Text style={styles.subHeader}>Luxury Car Care Delivered to Your Home</Text>
 
       {packages.map((pkg) => (
-        <View key={pkg.id} style={styles.packageContainer}>
-          <Text style={styles.packageTitle}>{pkg.name}</Text>
-          <Image source={pkg.image} style={styles.packageImage} resizeMode="contain" />
-          <View style={styles.detailsContainer}>
-            <Text style={styles.detailLabel}>Service Description</Text>
-            <Text style={styles.detailValue}>{pkg.description}</Text>
-            <Text style={styles.detailLabel}>Duration</Text>
-            <Text style={styles.detailValue}>{pkg.duration}</Text>
-            <Text style={styles.detailLabel}>Price</Text>
-            <Text style={styles.detailValue}>{pkg.price}</Text>
-          </View>
-          <TouchableOpacity style={styles.bookNowButton}>
-            <Text style={styles.bookNowText}>BOOK NOW</Text>
-          </TouchableOpacity>
-        </View>
+        <Package key={pkg.id} pkg={pkg} />
       ))}
     </ScrollView>
+  );
+}
+
+function Package({ pkg }) {
+  const [descriptionVisible, setDescriptionVisible] = useState(false);
+  const [durationVisible, setDurationVisible] = useState(false);
+  const descriptionHeight = useRef(new Animated.Value(0)).current;
+  const durationHeight = useRef(new Animated.Value(0)).current;
+
+  const toggleDescription = () => {
+    setDescriptionVisible(!descriptionVisible);
+    Animated.timing(descriptionHeight, {
+      toValue: descriptionVisible ? 0 : 100, // Adjust the value based on content height
+      duration: 300,
+      useNativeDriver: false,
+    }).start();
+  };
+
+  const toggleDuration = () => {
+    setDurationVisible(!durationVisible);
+    Animated.timing(durationHeight, {
+      toValue: durationVisible ? 0 : 50, // Adjust the value based on content height
+      duration: 300,
+      useNativeDriver: false,
+    }).start();
+  };
+
+  return (
+    <View style={styles.packageContainer}>
+      <Text style={styles.packageTitle}>{pkg.name}</Text>
+      <Image source={pkg.image} style={styles.packageImage} resizeMode="contain" />
+      <View style={styles.detailsContainer}>
+        <TouchableOpacity onPress={toggleDescription}>
+          <Text style={styles.detailLabel}>Service Description</Text>
+        </TouchableOpacity>
+        <Animated.View style={{ height: descriptionHeight, overflow: 'hidden' }}>
+          <Text style={styles.detailValue}>{pkg.description}</Text>
+        </Animated.View>
+        <TouchableOpacity onPress={toggleDuration}>
+          <Text style={styles.detailLabel}>Duration</Text>
+        </TouchableOpacity>
+        <Animated.View style={{ height: durationHeight, overflow: 'hidden' }}>
+          <Text style={styles.detailValue}>{pkg.duration}</Text>
+        </Animated.View>
+        <Text style={styles.detailLabel}>Price</Text>
+        <Text style={styles.detailValue}>{pkg.price}</Text>
+      </View>
+      <TouchableOpacity style={styles.bookNowButton}>
+        <Text style={styles.bookNowText}>BOOK NOW</Text>
+      </TouchableOpacity>
+    </View>
   );
 }
 
 function OptionsScreen() {
   return (
     <ScrollView contentContainerStyle={styles.scrollView}>
+      <Text style={styles.header}>ADDITIONAL OPTIONS</Text>
       <View style={styles.optionContainer}>
         <Text style={styles.optionTitle}>Interior Detailing</Text>
         <Text style={styles.optionDescription}>A thorough cleaning of the interior, including seats, carpets, and dashboard.</Text>
@@ -83,10 +121,11 @@ export default function ServicesScreen() {
     <SafeAreaView style={styles.container}>
       <Tab.Navigator
         screenOptions={{
-          tabBarActiveTintColor: '#1a1a1a',
-          tabBarIndicatorStyle: { backgroundColor: '#F5C518' },
-          tabBarLabelStyle: { fontSize: 16, fontWeight: 'bold' },
-          tabBarStyle: { backgroundColor: '#FFF' },
+          tabBarActiveTintColor: '#000', // Active tab text color
+          tabBarInactiveTintColor: '#888', // Inactive tab text color
+          tabBarIndicatorStyle: { backgroundColor: '#F5C518' }, // Indicator color
+          tabBarLabelStyle: { fontSize: 16, fontWeight: 'bold' }, // Label style
+          tabBarStyle: { backgroundColor: '#FFF', borderBottomWidth: 1, borderBottomColor: '#DDD' }, // Tab bar background and border
         }}
       >
         <Tab.Screen name="Packages" component={PackagesScreen} />
