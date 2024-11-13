@@ -12,15 +12,15 @@ import {
   Platform,
 } from 'react-native';
 import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
-import { createStackNavigator } from '@react-navigation/stack'; // Added this
+import { createStackNavigator } from '@react-navigation/stack';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import Carousel, { Pagination } from 'react-native-snap-carousel';
 
 const Tab = createMaterialTopTabNavigator();
-const Stack = createStackNavigator(); // Added this
+const Stack = createStackNavigator();
 const { width: screenWidth } = Dimensions.get('window');
 
-function DetailingScreen({ navigation }) { // Added navigation prop
+function DetailingScreen({ navigation }) {
   const [activePackage, setActivePackage] = useState(0);
   const carouselRef = useRef(null);
 
@@ -134,7 +134,7 @@ function DetailingScreen({ navigation }) { // Added navigation prop
   );
 }
 
-function CeramicCoatingScreen({ navigation }) { // Added navigation prop
+function CeramicCoatingScreen({ navigation }) {
   const [activePackage, setActivePackage] = useState(0);
   const carouselRef = useRef(null);
 
@@ -253,14 +253,14 @@ function ServicesTabs() {
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
-        tabBarActiveTintColor: '#000000', // Active tab text color (Black)
-        tabBarInactiveTintColor: '#000000', // Inactive tab text color (Black)
-        tabBarIndicatorStyle: { backgroundColor: '#000000' }, // Indicator color (Black)
+        tabBarActiveTintColor: '#000000',
+        tabBarInactiveTintColor: '#000000',
+        tabBarIndicatorStyle: { backgroundColor: '#000000' },
         tabBarLabelStyle: {
           fontSize: 16,
           fontWeight: 'bold',
           textTransform: 'uppercase',
-          color: '#000000', // Ensure label text is black
+          color: '#000000',
         },
         tabBarStyle: {
           backgroundColor: '#FFFFFF',
@@ -269,10 +269,10 @@ function ServicesTabs() {
           shadowOpacity: 0,
         },
         headerStyle: { backgroundColor: '#FFFFFF' },
-        headerTintColor: '#000000', // Back button and other header icons color (Black)
+        headerTintColor: '#000000',
         headerTitleStyle: {
           fontWeight: 'bold',
-          color: '#000000', // Header title text color (Black)
+          color: '#000000',
         },
         headerTitle: getHeaderTitle(route),
       })}
@@ -293,7 +293,11 @@ export default function ServicesScreen() {
           component={ServicesTabs}
           options={{ headerShown: false }}
         />
-        <Stack.Screen name="AddOns" component={AddOnsScreen} />
+        <Stack.Screen
+          name="AddOns"
+          component={AddOnsScreen}
+          options={{ headerTitle: 'Select Add-Ons' }}
+        />
         <Stack.Screen name="Checkout" component={CheckoutScreen} />
       </Stack.Navigator>
     </SafeAreaView>
@@ -301,16 +305,15 @@ export default function ServicesScreen() {
 }
 
 function getHeaderTitle(route) {
-  // Access the current state from the route to determine the active screen
   const routeName = route.state?.routes[route.state.index]?.name ?? 'Packages';
 
   switch (routeName) {
     case 'Detailing':
-      return 'Detailing Packages'; // Customize your title
+      return 'Detailing Packages';
     case 'Ceramic Coating':
-      return 'Ceramic Coating Packages'; // Customize your title
+      return 'Ceramic Coating Packages';
     default:
-      return 'Our Services'; // Default title
+      return 'Our Services';
   }
 }
 
@@ -404,7 +407,6 @@ function AddOnsScreen({ route, navigation }) {
             />
             <View style={{ marginLeft: 10 }}>
               <Text style={styles.addOnTitle}>{addOn.name}</Text>
-              {/* Optionally display description */}
             </View>
           </View>
           <Text style={styles.addOnPrice}>{addOn.price}</Text>
@@ -528,13 +530,13 @@ const styles = StyleSheet.create({
     paddingVertical: 30,
     paddingHorizontal: 20,
     alignItems: 'center',
-    backgroundColor: '#F2F2F2', // Soft background color
+    backgroundColor: '#F2F2F2',
   },
   header: {
     fontSize: 28,
     fontWeight: '700',
     marginBottom: 10,
-    color: '#000000', // Black color
+    color: '#000000',
     textAlign: 'center',
     letterSpacing: 1.5,
   },
@@ -542,7 +544,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
     marginBottom: 25,
-    color: '#333333', // Dark grey for contrast
+    color: '#333333',
     textAlign: 'center',
     paddingHorizontal: 30,
     lineHeight: 22,
@@ -572,7 +574,7 @@ const styles = StyleSheet.create({
   packageTitle: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#000000', // Black color
+    color: '#000000',
     textTransform: 'uppercase',
     letterSpacing: 2,
   },
@@ -583,7 +585,7 @@ const styles = StyleSheet.create({
   packagePrice: {
     fontSize: 32,
     fontWeight: '700',
-    color: '#000000', // Black color
+    color: '#000000',
   },
   packageDuration: {
     fontSize: 16,
