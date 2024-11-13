@@ -18,7 +18,7 @@ import Carousel, { Pagination } from 'react-native-snap-carousel';
 const Tab = createMaterialTopTabNavigator();
 const { width: screenWidth } = Dimensions.get('window');
 
-function PackagesScreen() {
+function DetailingScreen() {
   const [activePackage, setActivePackage] = useState(0);
   const carouselRef = useRef(null);
 
@@ -125,7 +125,7 @@ function PackagesScreen() {
   );
 }
 
-function DetailingScreen() {
+function CeramicCoatingScreen() {
   const [activePackage, setActivePackage] = useState(0);
   const carouselRef = useRef(null);
 
@@ -229,32 +229,57 @@ function DetailingScreen() {
       </ScrollView>
     </View>
   );
-}
-
-
-export default function ServicesScreen() {
+}export default function ServicesScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <Tab.Navigator
-        screenOptions={{
-          tabBarActiveTintColor: '#000000',
-          tabBarInactiveTintColor: '#888888',
-          tabBarIndicatorStyle: { backgroundColor: '#000000' },
-          tabBarLabelStyle: { fontSize: 16, fontWeight: 'bold', textTransform: 'uppercase' },
+        screenOptions={({ route }) => ({
+          tabBarActiveTintColor: '#000000',        // Active tab text color (Black)
+          tabBarInactiveTintColor: '#000000',      // Inactive tab text color (Black)
+          tabBarIndicatorStyle: { backgroundColor: '#000000' }, // Indicator color (Black)
+          tabBarLabelStyle: { 
+            fontSize: 16, 
+            fontWeight: 'bold', 
+            textTransform: 'uppercase',
+            color: '#000000',                      // Ensure label text is black
+          },
           tabBarStyle: {
             backgroundColor: '#FFFFFF',
             borderBottomWidth: 0,
             elevation: 0,
             shadowOpacity: 0,
           },
-        }}
+          headerStyle: { backgroundColor: '#FFFFFF' },
+          headerTintColor: '#000000',               // Back button and other header icons color (Black)
+          headerTitleStyle: {
+            fontWeight: 'bold',
+            color: '#000009',                        // Header title text color (Black)
+          },
+          headerTitle: getHeaderTitle(route),
+        })}
       >
-        <Tab.Screen name="Packages" component={PackagesScreen} />
-        <Tab.Screen name="Add-Ons" component={DetailingScreen} />
+        <Tab.Screen name="Detailing" component={DetailingScreen} />
+        <Tab.Screen name="Ceramic Coating" component={CeramicCoatingScreen} />
       </Tab.Navigator>
     </SafeAreaView>
   );
 }
+
+function getHeaderTitle(route) {
+  // Access the current state from the route to determine the active screen
+  const routeName = route.state?.routes[route.state.index]?.name ?? 'Packages';
+
+  switch (routeName) {
+    case 'Detailing':
+      return 'Detailing Packages'; // Customize your title
+    case 'Ceramic Coating':
+      return 'Ceramic Coating Packages'; // Customize your title
+    default:
+      return 'Our Services'; // Default title
+  }
+}
+
+
 
 const styles = StyleSheet.create({
   safeArea: {
@@ -270,12 +295,13 @@ const styles = StyleSheet.create({
     paddingVertical: 30,
     paddingHorizontal: 20,
     alignItems: 'center',
+    backgroundColor: '#F2F2F2', // Soft background color
   },
   header: {
     fontSize: 28,
     fontWeight: '700',
     marginBottom: 10,
-    color: '#000000',
+    color: '#000000', // Black color
     textAlign: 'center',
     letterSpacing: 1.5,
   },
@@ -283,7 +309,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
     marginBottom: 25,
-    color: '#333333',
+    color: '#333333', // Dark grey for contrast
     textAlign: 'center',
     paddingHorizontal: 30,
     lineHeight: 22,
@@ -313,7 +339,7 @@ const styles = StyleSheet.create({
   packageTitle: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#000000',
+    color: '#000000', // Black color
     textTransform: 'uppercase',
     letterSpacing: 2,
   },
@@ -324,7 +350,7 @@ const styles = StyleSheet.create({
   packagePrice: {
     fontSize: 32,
     fontWeight: '700',
-    color: '#000000',
+    color: '#000000', // Black color
   },
   packageDuration: {
     fontSize: 16,
