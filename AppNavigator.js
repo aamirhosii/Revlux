@@ -10,6 +10,7 @@ import DetailingScreen from './DetailingScreen';
 import CoatingScreen from './CoatingScreen';
 import ServicesScreen from './ServicesScreen';
 import BookingScreen from './BookingScreen';
+import AddOn from './AddOn';
 
 
 const Stack = createStackNavigator();
@@ -36,7 +37,7 @@ export default function AppNavigator() {
         <Stack.Screen name="Coating" component={CoatingScreen} options={{ title: 'Ceramic Coating' }} />
         <Stack.Screen name="Services" component={ServicesScreen} options={{ title: 'Our Services' }} />
         <Stack.Screen name="Booking" component={BookingScreen} options={{ title: 'Book Appointment' }} />
-        <Stack.Screen name="AddOns" component={AddOnsScreen} />
+        <Stack.Screen name="AddOn" component={AddOn} />
       </Stack.Navigator>
     </NavigationContainer>
   );

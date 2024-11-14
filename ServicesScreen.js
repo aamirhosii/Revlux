@@ -1,5 +1,5 @@
 // Import statements
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useLayoutEffect } from 'react';
 import {
   View,
   Text,
@@ -15,6 +15,7 @@ import { createMaterialTopTabNavigator } from '@react-navigation/material-top-ta
 import { createStackNavigator } from '@react-navigation/stack';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import Carousel, { Pagination } from 'react-native-snap-carousel';
+
 
 const Tab = createMaterialTopTabNavigator();
 const Stack = createStackNavigator();
@@ -252,7 +253,7 @@ function CeramicCoatingScreen({ navigation }) {
 function ServicesTabs() {
   return (
     <Tab.Navigator
-      screenOptions={({ route }) => ({
+      screenOptions={{
         tabBarActiveTintColor: '#000000',
         tabBarInactiveTintColor: '#000000',
         tabBarIndicatorStyle: { backgroundColor: '#000000' },
@@ -268,37 +269,40 @@ function ServicesTabs() {
           elevation: 0,
           shadowOpacity: 0,
         },
-        headerStyle: { backgroundColor: '#FFFFFF' },
-        headerTintColor: '#000000',
-        headerTitleStyle: {
-          fontWeight: 'bold',
-          color: '#000000',
-        },
-        headerTitle: getHeaderTitle(route),
-      })}
+      }}
     >
       <Tab.Screen name="Detailing" component={DetailingScreen} />
       <Tab.Screen name="Ceramic Coating" component={CeramicCoatingScreen} />
     </Tab.Navigator>
   );
 }
+export default function ServicesScreen({ navigation }) {
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerShown: false,
+    });
+  }, [navigation]);
 
-// Modified ServicesScreen with Stack Navigator
-export default function ServicesScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <Stack.Navigator>
         <Stack.Screen
           name="ServicesTabs"
           component={ServicesTabs}
-          options={{ headerShown: false }}
+          options={{
+            headerTitle: 'Our Services',
+          }}
         />
         <Stack.Screen
           name="AddOns"
           component={AddOnsScreen}
           options={{ headerTitle: 'Select Add-Ons' }}
         />
-        <Stack.Screen name="Checkout" component={CheckoutScreen} />
+        <Stack.Screen
+          name="Checkout"
+          component={CheckoutScreen}
+          options={{ headerTitle: 'Checkout' }}
+        />
       </Stack.Navigator>
     </SafeAreaView>
   );
@@ -520,6 +524,7 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: '#FFFFFF',
+    paddingTop: Platform.OS === 'android' ? 0 : 0, // Ensure no extra padding on iOS
   },
   container: {
     flex: 1,
@@ -527,7 +532,7 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flexGrow: 1,
-    paddingVertical: 30,
+    paddingVertical: 15, // Reduced from 30
     paddingHorizontal: 20,
     alignItems: 'center',
     backgroundColor: '#F2F2F2',
@@ -535,6 +540,7 @@ const styles = StyleSheet.create({
   header: {
     fontSize: 28,
     fontWeight: '700',
+    marginTop: 0, // Added to ensure no top margin
     marginBottom: 10,
     color: '#000000',
     textAlign: 'center',
@@ -543,7 +549,7 @@ const styles = StyleSheet.create({
   subHeader: {
     fontSize: 16,
     fontWeight: '500',
-    marginBottom: 25,
+    marginBottom: 20, // Reduced from 25
     color: '#333333',
     textAlign: 'center',
     paddingHorizontal: 30,
