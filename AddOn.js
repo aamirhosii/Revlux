@@ -5,7 +5,7 @@ import { useNavigation } from '@react-navigation/native';
 const addOns = [
   {
     id: 'exterior_detail',
-    name: 'Exterior Detail', 
+    name: 'Exterior Detail',
     price: '$50',
     details: [
       'Exterior Foam Wash',
@@ -13,8 +13,7 @@ const addOns = [
       'Break Dust Removal',
       'Tire & Wheel Detail',
       'Tire & Wheel Dressing',
-    ],
-    price: '$50',
+    ]
   },
   {
     id: 'ceramic_paint_sealant',
@@ -25,8 +24,7 @@ const addOns = [
       'Iron Decon',
       'Paint Decontamination (Clay Bar Treatment)',
       '12-Month Ceramic Sealant for hydrophobic properties and protection against the elements',
-    ],
-    price: '$150',
+    ]
   },
   {
     id: 'glass_ceramic_coating',
@@ -35,42 +33,30 @@ const addOns = [
     details: [
       'Glass Cleaning & Polishing',
       '12-Month Ceramic Coating for hydrophobic properties & protection against the elements',
-    ],
-    price: '$100',
+    ]
   },
   {
     id: 'pet_hair_removal',
     name: 'Pet Hair Removal',
-    description: ['Remove all the fluff!'],
     price: '$80',
     details: ['Remove all the fluff!']
   },
   {
     id: 'engine_bay_detailing',
     name: 'Engine Bay Detailing',
-    description: ['Have your engine breathe clean air!'],
     price: '$120',
     details: ['Have your engine breathe clean air!']
   }
 ];
 
-export default function Component({ navigation, route }) {
+export default function AddOnsScreen() {
   const [selectedAddOns, setSelectedAddOns] = useState([]);
-  const { selectedPackage } = route.params;
+  const navigation = useNavigation();
 
   const toggleAddOn = (id) => {
-    setSelectedAddOns((prevSelected) =>
-      prevSelected.includes(id)
-        ? prevSelected.filter((addOnId) => addOnId !== id)
-        : [...prevSelected, id]
+    setSelectedAddOns(prev => 
+      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
     );
-  };
-
-  const proceedToCheckout = () => {
-    navigation.navigate('Checkout', {
-      selectedPackage,
-      selectedAddOns,
-    });
   };
 
   return (
@@ -100,7 +86,6 @@ export default function Component({ navigation, route }) {
               <Text style={styles.addonName}>{addon.name}</Text>
               <Text style={styles.addonPrice}>{addon.price}</Text>
             </View>
-            {/* Display Add-On Details */}
             <View style={styles.addonDetails}>
               {addon.details.map((detail, index) => (
                 <Text key={index} style={styles.detailText}>• {detail}</Text>
@@ -113,6 +98,7 @@ export default function Component({ navigation, route }) {
       <TouchableOpacity
         style={styles.checkoutButton}
         onPress={() => {
+          // Handle checkout logic here
           console.log('Selected Add-Ons:', selectedAddOns);
         }}
       >
@@ -159,7 +145,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
   },
-  addOnHeader: {
+  addonHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 8,
@@ -182,23 +168,22 @@ const styles = StyleSheet.create({
   checkboxChecked: {
     backgroundColor: 'black',
   },
-  addOnTitle: {
+  addonName: {
+    flex: 1,
     fontSize: 18,
     fontWeight: '600',
   },
-  addOnPrice: {
+  addonPrice: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#000000',
   },
   addonDetails: {
     paddingLeft: 36,
-    marginTop: 8, // Adds spacing between name and details
   },
   detailText: {
     fontSize: 14,
     color: '#666',
-    marginBottom: 4, // Adds space between each detail line
+    marginBottom: 4,
   },
   checkoutButton: {
     backgroundColor: 'black',
@@ -211,8 +196,5 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 18,
     fontWeight: 'bold',
-    fontSize: 18,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
   },
 });
