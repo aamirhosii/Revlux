@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
+import {SafeAreaView, View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons'; // Ensure this package is installed
 
 const addOns = [
   {
@@ -13,7 +14,7 @@ const addOns = [
       'Break Dust Removal',
       'Tire & Wheel Detail',
       'Tire & Wheel Dressing',
-    ]
+    ],
   },
   {
     id: 'ceramic_paint_sealant',
@@ -24,7 +25,7 @@ const addOns = [
       'Iron Decon',
       'Paint Decontamination (Clay Bar Treatment)',
       '12-Month Ceramic Sealant for hydrophobic properties and protection against the elements',
-    ]
+    ],
   },
   {
     id: 'glass_ceramic_coating',
@@ -33,43 +34,51 @@ const addOns = [
     details: [
       'Glass Cleaning & Polishing',
       '12-Month Ceramic Coating for hydrophobic properties & protection against the elements',
-    ]
+    ],
   },
   {
     id: 'pet_hair_removal',
     name: 'Pet Hair Removal',
     price: '$80',
-    details: ['Remove all the fluff!']
+    details: ['Remove all the fluff!'],
   },
   {
     id: 'engine_bay_detailing',
     name: 'Engine Bay Detailing',
     price: '$120',
-    details: ['Have your engine breathe clean air!']
+    details: ['Have your engine breathe clean air!'],
   }
 ];
 
-export default function AddOnsScreen() {
-  const [selectedAddOns, setSelectedAddOns] = useState([]);
+export default function AddOnsScreen({ route }) {
+  
   const navigation = useNavigation();
+  const { selectedPackage } = route?.params || {}; // Handle case where params may not be provided
+  const [selectedAddOns, setSelectedAddOns] = useState([]);
+
+  
 
   const toggleAddOn = (id) => {
-    setSelectedAddOns(prev => 
-      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
-    );
+    setSelectedAddOns(prev => prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]);
+  };
+
+  const proceedToCheckout = () => {
+    navigation.navigate('Checkout', {
+      selectedPackage,
+      selectedAddOns,
+    });
   };
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.safeAreaContainer}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Text style={styles.backLink}>Our Services</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Select Add-Ons</Text>
       </View>
-
+  
       <ScrollView style={styles.scrollView}>
-        <Text style={styles.title}>Select Add-Ons</Text>
         {addOns.map((addon) => (
           <TouchableOpacity
             key={addon.id}
@@ -77,12 +86,11 @@ export default function AddOnsScreen() {
             onPress={() => toggleAddOn(addon.id)}
           >
             <View style={styles.addonHeader}>
-              <View style={styles.checkboxContainer}>
-                <View style={[
-                  styles.checkbox,
-                  selectedAddOns.includes(addon.id) && styles.checkboxChecked
-                ]} />
-              </View>
+              <MaterialCommunityIcons
+                name={selectedAddOns.includes(addon.id) ? 'checkbox-marked' : 'checkbox-blank-outline'}
+                size={24}
+                color="#000000"
+              />
               <Text style={styles.addonName}>{addon.name}</Text>
               <Text style={styles.addonPrice}>{addon.price}</Text>
             </View>
@@ -94,21 +102,19 @@ export default function AddOnsScreen() {
           </TouchableOpacity>
         ))}
       </ScrollView>
-
-      <TouchableOpacity
-        style={styles.checkoutButton}
-        onPress={() => {
-          // Handle checkout logic here
-          console.log('Selected Add-Ons:', selectedAddOns);
-        }}
-      >
+  
+      <TouchableOpacity style={styles.checkoutButton} onPress={proceedToCheckout}>
         <Text style={styles.checkoutButtonText}>PROCEED TO CHECKOUT</Text>
       </TouchableOpacity>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeAreaContainer: {
+    flex: 1,
+    backgroundColor: '#F2F2F2',
+  },
   container: {
     flex: 1,
     backgroundColor: '#F2F2F2',
@@ -132,12 +138,6 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: '900',
-    textAlign: 'center',
-    marginVertical: 24,
   },
   addonItem: {
     backgroundColor: 'white',
@@ -179,6 +179,7 @@ const styles = StyleSheet.create({
   },
   addonDetails: {
     paddingLeft: 36,
+    marginTop: 8,
   },
   detailText: {
     fontSize: 14,

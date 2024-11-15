@@ -1,5 +1,4 @@
-// Import statements
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useLayoutEffect } from 'react';
 import {
   View,
   Text,
@@ -16,6 +15,9 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import Carousel, { Pagination } from 'react-native-snap-carousel';
 
+// Import the AddOn component
+import AddOn from './AddOn';
+
 const Tab = createMaterialTopTabNavigator();
 const Stack = createStackNavigator();
 const { width: screenWidth } = Dimensions.get('window');
@@ -23,7 +25,6 @@ const { width: screenWidth } = Dimensions.get('window');
 function DetailingScreen({ navigation }) {
   const [activePackage, setActivePackage] = useState(0);
   const carouselRef = useRef(null);
-
   const packages = [
     {
       id: 'core',
@@ -122,9 +123,9 @@ function DetailingScreen({ navigation }) {
         <TouchableOpacity
           style={styles.bookNowButton}
           onPress={() => {
-            navigation.navigate('AddOns', {
+            navigation.navigate('AddOnsScreen', {
               selectedPackage: packages[activePackage],
-            });
+            });            
           }}
         >
           <Text style={styles.bookNowText}>BOOK {packages[activePackage].name}</Text>
@@ -133,6 +134,7 @@ function DetailingScreen({ navigation }) {
     </View>
   );
 }
+
 
 function CeramicCoatingScreen({ navigation }) {
   const [activePackage, setActivePackage] = useState(0);
@@ -236,9 +238,9 @@ function CeramicCoatingScreen({ navigation }) {
         <TouchableOpacity
           style={styles.bookNowButton}
           onPress={() => {
-            navigation.navigate('AddOns', {
+            navigation.navigate('AddOnsScreen', {
               selectedPackage: packages[activePackage],
-            });
+            });            
           }}
         >
           <Text style={styles.bookNowText}>BOOK {packages[activePackage].name}</Text>
@@ -248,11 +250,10 @@ function CeramicCoatingScreen({ navigation }) {
   );
 }
 
-// New ServicesTabs component to hold the Tab Navigator
 function ServicesTabs() {
   return (
     <Tab.Navigator
-      screenOptions={({ route }) => ({
+      screenOptions={{
         tabBarActiveTintColor: '#000000',
         tabBarInactiveTintColor: '#000000',
         tabBarIndicatorStyle: { backgroundColor: '#000000' },
@@ -268,14 +269,7 @@ function ServicesTabs() {
           elevation: 0,
           shadowOpacity: 0,
         },
-        headerStyle: { backgroundColor: '#FFFFFF' },
-        headerTintColor: '#000000',
-        headerTitleStyle: {
-          fontWeight: 'bold',
-          color: '#000000',
-        },
-        headerTitle: getHeaderTitle(route),
-      })}
+      }}
     >
       <Tab.Screen name="Detailing" component={DetailingScreen} />
       <Tab.Screen name="Ceramic Coating" component={CeramicCoatingScreen} />
@@ -283,22 +277,23 @@ function ServicesTabs() {
   );
 }
 
-// Modified ServicesScreen with Stack Navigator
-export default function ServicesScreen() {
+export default function ServicesScreen({ navigation }) {
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerShown: false,
+    });
+  }, [navigation]);
+
   return (
     <SafeAreaView style={styles.safeArea}>
-      <Stack.Navigator>
+           <Stack.Navigator>
         <Stack.Screen
           name="ServicesTabs"
           component={ServicesTabs}
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="AddOns"
-          component={AddOnsScreen}
-          options={{ headerTitle: 'Select Add-Ons' }}
-        />
-        <Stack.Screen name="Checkout" component={CheckoutScreen} />
+          options={{
+            headerTitle: 'Our Services',
+          }}
+        /> 
       </Stack.Navigator>
     </SafeAreaView>
   );
@@ -317,209 +312,12 @@ function getHeaderTitle(route) {
   }
 }
 
-// AddOnsScreen component
-function AddOnsScreen({ route, navigation }) {
-  const { selectedPackage } = route.params;
-  const [selectedAddOns, setSelectedAddOns] = useState([]);
-
-  const addOns = [
-    {
-      id: 'exterior_detail',
-      name: 'Exterior Detail',
-      description: [
-        'Exterior Foam Wash',
-        'Exterior Contact Wash',
-        'Break Dust Removal',
-        'Tire & Wheel Detail',
-        'Tire & Wheel Dressing',
-      ],
-      price: '$50',
-    },
-    {
-      id: 'ceramic_paint_sealant',
-      name: 'Ceramic Paint Sealant (12 Months)',
-      description: [
-        'Everything in the Exterior Detail Add-On Plus:',
-        'Iron Decon',
-        'Paint Decontamination (Clay Bar Treatment)',
-        '12-Month Ceramic Sealant for hydrophobic properties and protection against the elements',
-      ],
-      price: '$150',
-    },
-    {
-      id: 'glass_ceramic_coating',
-      name: 'Glass Ceramic Coating (12 Months)',
-      description: [
-        'Glass Cleaning & Polishing',
-        '12-Month Ceramic Coating for hydrophobic properties & protection against the elements',
-      ],
-      price: '$100',
-    },
-    {
-      id: 'pet_hair_removal',
-      name: 'Pet Hair Removal',
-      description: ['Remove all the fluff!'],
-      price: '$80',
-    },
-    {
-      id: 'engine_bay_detailing',
-      name: 'Engine Bay Detailing',
-      description: ['Have your engine breathe clean air!'],
-      price: '$120',
-    },
-  ];
-
-  const toggleAddOn = (id) => {
-    setSelectedAddOns((prevSelected) => {
-      if (prevSelected.includes(id)) {
-        return prevSelected.filter((addOnId) => addOnId !== id);
-      } else {
-        return [...prevSelected, id];
-      }
-    });
-  };
-
-  const proceedToCheckout = () => {
-    navigation.navigate('Checkout', {
-      selectedPackage,
-      selectedAddOns,
-    });
-  };
-
-  return (
-    <ScrollView contentContainerStyle={styles.scrollView}>
-      <Text style={styles.header}>Select Add-Ons</Text>
-      {addOns.map((addOn) => (
-        <TouchableOpacity
-          key={addOn.id}
-          onPress={() => toggleAddOn(addOn.id)}
-          style={styles.addOnItem}
-        >
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <MaterialCommunityIcons
-              name={
-                selectedAddOns.includes(addOn.id)
-                  ? 'checkbox-marked'
-                  : 'checkbox-blank-outline'
-              }
-              size={24}
-              color="#000000"
-            />
-            <View style={{ marginLeft: 10 }}>
-              <Text style={styles.addOnTitle}>{addOn.name}</Text>
-            </View>
-          </View>
-          <Text style={styles.addOnPrice}>{addOn.price}</Text>
-        </TouchableOpacity>
-      ))}
-
-      <TouchableOpacity style={styles.bookNowButton} onPress={proceedToCheckout}>
-        <Text style={styles.bookNowText}>Proceed to Checkout</Text>
-      </TouchableOpacity>
-    </ScrollView>
-  );
-}
-
-// CheckoutScreen component
-function CheckoutScreen({ route }) {
-  const { selectedPackage, selectedAddOns } = route.params;
-
-  const addOnsDetails = [
-    {
-      id: 'exterior_detail',
-      name: 'Exterior Detail',
-      description: [
-        'Exterior Foam Wash',
-        'Exterior Contact Wash',
-        'Break Dust Removal',
-        'Tire & Wheel Detail',
-        'Tire & Wheel Dressing',
-      ],
-      price: '$50',
-    },
-    {
-      id: 'ceramic_paint_sealant',
-      name: 'Ceramic Paint Sealant (12 Months)',
-      description: [
-        'Everything in the Exterior Detail Add-On Plus:',
-        'Iron Decon',
-        'Paint Decontamination (Clay Bar Treatment)',
-        '12-Month Ceramic Sealant for hydrophobic properties and protection against the elements',
-      ],
-      price: '$150',
-    },
-    {
-      id: 'glass_ceramic_coating',
-      name: 'Glass Ceramic Coating (12 Months)',
-      description: [
-        'Glass Cleaning & Polishing',
-        '12-Month Ceramic Coating for hydrophobic properties & protection against the elements',
-      ],
-      price: '$100',
-    },
-    {
-      id: 'pet_hair_removal',
-      name: 'Pet Hair Removal',
-      description: ['Remove all the fluff!'],
-      price: '$80',
-    },
-    {
-      id: 'engine_bay_detailing',
-      name: 'Engine Bay Detailing',
-      description: ['Have your engine breathe clean air!'],
-      price: '$120',
-    },
-  ];
-
-  const selectedAddOnsDetails = addOnsDetails.filter((addOn) =>
-    selectedAddOns.includes(addOn.id)
-  );
-
-  // Calculate total price
-  const packagePrice = parseFloat(selectedPackage.price.replace('$', ''));
-  const addOnsPrice = selectedAddOnsDetails.reduce((total, addOn) => {
-    return total + parseFloat(addOn.price.replace('$', ''));
-  }, 0);
-  const totalPrice = packagePrice + addOnsPrice;
-
-  return (
-    <ScrollView contentContainerStyle={styles.scrollView}>
-      <Text style={styles.header}>Checkout</Text>
-      <Text style={styles.detailsTitle}>Selected Package:</Text>
-      <View style={styles.checkoutItem}>
-        <Text style={styles.packageTitle}>{selectedPackage.name}</Text>
-        <Text style={styles.packagePrice}>{selectedPackage.price}</Text>
-      </View>
-
-      <Text style={styles.detailsTitle}>Selected Add-Ons:</Text>
-      {selectedAddOnsDetails.length > 0 ? (
-        selectedAddOnsDetails.map((addOn) => (
-          <View key={addOn.id} style={styles.checkoutItem}>
-            <Text style={styles.detailText}>{addOn.name}</Text>
-            <Text style={styles.addOnPrice}>{addOn.price}</Text>
-          </View>
-        ))
-      ) : (
-        <Text style={styles.detailText}>No add-ons selected.</Text>
-      )}
-
-      <View style={styles.totalContainer}>
-        <Text style={styles.totalText}>Total Price:</Text>
-        <Text style={styles.totalPrice}>${totalPrice.toFixed(2)}</Text>
-      </View>
-
-      <TouchableOpacity style={styles.bookNowButton}>
-        <Text style={styles.bookNowText}>Confirm Booking</Text>
-      </TouchableOpacity>
-    </ScrollView>
-  );
-}
-
 // Styles
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: '#FFFFFF',
+    paddingTop: Platform.OS === 'android' ? 0 : 0,
   },
   container: {
     flex: 1,
@@ -527,7 +325,7 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flexGrow: 1,
-    paddingVertical: 30,
+    paddingVertical: 15,
     paddingHorizontal: 20,
     alignItems: 'center',
     backgroundColor: '#F2F2F2',
@@ -535,6 +333,7 @@ const styles = StyleSheet.create({
   header: {
     fontSize: 28,
     fontWeight: '700',
+    marginTop: 0,
     marginBottom: 10,
     color: '#000000',
     textAlign: 'center',
@@ -543,7 +342,7 @@ const styles = StyleSheet.create({
   subHeader: {
     fontSize: 16,
     fontWeight: '500',
-    marginBottom: 25,
+    marginBottom: 20,
     color: '#333333',
     textAlign: 'center',
     paddingHorizontal: 30,

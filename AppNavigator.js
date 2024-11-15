@@ -10,7 +10,7 @@ import DetailingScreen from './DetailingScreen';
 import CoatingScreen from './CoatingScreen';
 import ServicesScreen from './ServicesScreen';
 import BookingScreen from './BookingScreen';
-
+import AddOnsScreen from './AddOn'; // Ensure this import matches your actual file structure
 
 const Stack = createStackNavigator();
 
@@ -31,12 +31,12 @@ export default function AppNavigator() {
         <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
         <Stack.Screen name="Signup" component={SignupScreen} options={{ title: 'Create Account' }} />
         <Stack.Screen name="Home" component={HomeScreen} options={{ title: 'Shelby Auto Detailing' }} />
-        <Stack.Screen name="AboutScreen" component={AboutScreen} options={{ title: 'About Us' }} />
+        <Stack.Screen name="About" component={AboutScreen} options={{ title: 'About Us' }} />
         <Stack.Screen name="Detailing" component={DetailingScreen} options={{ title: 'Mobile Detailing' }} />
         <Stack.Screen name="Coating" component={CoatingScreen} options={{ title: 'Ceramic Coating' }} />
-        <Stack.Screen name="Services" component={ServicesScreen} options={{ title: 'Our Services' }} />
+        <Stack.Screen name="Services" component={ServicesScreen} options={{headerShown: false, }} />
         <Stack.Screen name="Booking" component={BookingScreen} options={{ title: 'Book Appointment' }} />
-        <Stack.Screen name="AddOns" component={AddOnsScreen} />
+        <Stack.Screen name="AddOnsScreen" component={AddOnsScreen} options={{headerShown: false, }} />
       </Stack.Navigator>
     </NavigationContainer>
   );
