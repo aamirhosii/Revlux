@@ -9,9 +9,11 @@ import {
   TouchableOpacity,
   SafeAreaView,
   Dimensions,
+  StatusBar,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { DrawerActions } from '@react-navigation/native';
 
 const { width, height } = Dimensions.get('window');
 
@@ -23,15 +25,25 @@ const Section = ({ title, iconName, onPress }) => (
 );
 
 export default function HomeScreen({ navigation }) {
-  // Use layout effect to remove the header
   useLayoutEffect(() => {
     navigation.setOptions({
-      headerShown: false,
+      headerShown: true,
+      headerLeft: () => (
+        <TouchableOpacity
+          onPress={() => navigation.dispatch(DrawerActions.openDrawer())}
+          style={styles.menuButton}
+        >
+          <Ionicons name="menu-outline" size={32} color="#000" />
+        </TouchableOpacity>
+      ),
+      headerTitle: '',
+      headerTransparent: true,
     });
   }, [navigation]);
 
   return (
     <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="dark-content" />
       <ScrollView contentContainerStyle={styles.scrollView}>
         <Image
           source={require('./assets/logo.png')}
@@ -45,7 +57,7 @@ export default function HomeScreen({ navigation }) {
             resizeMode="cover"
           >
             <LinearGradient
-              colors={['rgba(0,0,0,0.4)', 'transparent']}
+              colors={['rgba(0,0,0,0.6)', 'transparent']}
               style={styles.heroGradient}
             >
               <Text style={styles.heroTitle}>Premium Mobile Auto Detailing</Text>
@@ -77,7 +89,7 @@ export default function HomeScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFF',
+    backgroundColor: '#FFFFFF',
   },
   scrollView: {
     flexGrow: 1,
@@ -87,50 +99,68 @@ const styles = StyleSheet.create({
     width: width * 0.5,
     height: height * 0.1,
     marginTop: 20,
-    marginBottom: 60,
+    marginBottom: 40,
   },
   heroContainer: {
     width: '90%',
     alignItems: 'center',
-    marginBottom: 40, // Add spacing between hero and sections
+    marginBottom: 40,
+    borderRadius: 20,
+    overflow: 'hidden',
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
   },
   heroImage: {
-    width: '100%', // Set to full width to avoid cut-off
-    height: height * 0.40, // Adjust height as needed
+    width: '100%',
+    height: height * 0.35,
     justifyContent: 'flex-end',
-    borderRadius: 15,
-    overflow: 'hidden',
   },
   heroGradient: {
     padding: 20,
-    height: '50%', // Extend gradient for better text visibility
+    height: '50%',
     justifyContent: 'flex-end',
   },
   heroTitle: {
-    color: '#FFF',
+    color: '#FFFFFF',
     fontSize: 28,
     fontWeight: 'bold',
-    marginBottom: 10, // Add some bottom padding to text
+    marginBottom: 10,
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: -1, height: 1 },
+    textShadowRadius: 10,
   },
   sectionsContainer: {
     width: '90%',
     paddingVertical: 20,
-    marginTop: 20, // Additional top spacing
   },
   section: {
-    backgroundColor: '#F8F8F8',
-    padding: 15,
-    borderRadius: 10,
+    backgroundColor: '#F0F0F0',
+    padding: 20,
+    borderRadius: 15,
     marginBottom: 15,
     flexDirection: 'row',
     alignItems: 'center',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.22,
+    shadowRadius: 2.22,
   },
   sectionIcon: {
-    marginRight: 10,
-    color: '#000',
+    marginRight: 15,
   },
   sectionTitle: {
-    fontSize: 16,
-    color: '#000',
+    fontSize: 18,
+    color: '#000000',
+    fontWeight: '600',
+  },
+  menuButton: {
+    marginLeft: 15,
+    padding: 5,
+    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+    borderRadius: 20,
   },
 });

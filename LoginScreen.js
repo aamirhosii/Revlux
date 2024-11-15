@@ -24,8 +24,12 @@ export default function LoginScreen() {
     }
     // Here you would typically call your authentication API
     console.log('Login attempt with:', { email, password });
-    // For demo purposes, we'll just navigate to the Home screen
-    navigation.navigate('Home');
+    navigation.navigate('Main', {
+      screen: 'MainStack',
+      params: {
+        screen: 'Home',
+      },
+    });
   };
 
   return (
