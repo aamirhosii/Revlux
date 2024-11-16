@@ -135,7 +135,6 @@ function DetailingScreen({ navigation }) {
   );
 }
 
-
 function CeramicCoatingScreen({ navigation }) {
   const [activePackage, setActivePackage] = useState(0);
   const carouselRef = useRef(null);
@@ -277,27 +276,14 @@ function ServicesTabs() {
   );
 }
 
-export default function ServicesScreen({ navigation }) {
-  useLayoutEffect(() => {
-    navigation.setOptions({
-      headerShown: false,
-    });
-  }, [navigation]);
-
+export default function ServicesScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
-           <Stack.Navigator>
-        <Stack.Screen
-          name="ServicesTabs"
-          component={ServicesTabs}
-          options={{
-            headerTitle: 'Our Services',
-          }}
-        /> 
-      </Stack.Navigator>
+      <ServicesTabs />
     </SafeAreaView>
   );
 }
+
 
 function getHeaderTitle(route) {
   const routeName = route.state?.routes[route.state.index]?.name ?? 'Packages';
@@ -317,7 +303,6 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: '#FFFFFF',
-    paddingTop: Platform.OS === 'android' ? 0 : 0,
   },
   container: {
     flex: 1,

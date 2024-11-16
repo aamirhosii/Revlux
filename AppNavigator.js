@@ -97,15 +97,16 @@ function DrawerNavigator() {
           ),
         }}
       />
-      <Drawer.Screen 
-        name="Services" 
-        component={ServicesScreen}
-        options={{
-          drawerIcon: ({ color, size }) => (
-            <Ionicons name="car-outline" size={size} color={color} />
-          ),
-        }}
-      />
+       <Drawer.Screen 
+    name="Services" 
+    component={ServicesStack} // Use the stack containing ServicesScreen
+    options={{
+      title: 'Our Services',
+      drawerIcon: ({ color, size }) => (
+        <Ionicons name="car-outline" size={size} color={color} />
+      ),
+    }}
+  />
       <Drawer.Screen 
         name="My Bookings" 
         component={MyBookingsScreen}

@@ -71,12 +71,6 @@ export default function AddOnsScreen({ route }) {
 
   return (
     <SafeAreaView style={styles.safeAreaContainer}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={styles.backLink}>Our Services</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Select Add-Ons</Text>
-      </View>
   
       <ScrollView style={styles.scrollView}>
         {addOns.map((addon) => (
