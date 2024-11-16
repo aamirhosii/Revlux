@@ -99,12 +99,13 @@ function DrawerNavigator() {
       />
        <Drawer.Screen 
     name="Services" 
-    component={ServicesStack} // Use the stack containing ServicesScreen
+    component={ServicesScreen}
     options={{
       title: 'Our Services',
       drawerIcon: ({ color, size }) => (
         <Ionicons name="car-outline" size={size} color={color} />
       ),
+      headerShown: true, // Ensure the header is shown with menu button
     }}
   />
       <Drawer.Screen 

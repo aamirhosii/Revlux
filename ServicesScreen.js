@@ -276,7 +276,18 @@ function ServicesTabs() {
   );
 }
 
-export default function ServicesScreen() {
+export default function ServicesScreen({ navigation }) {
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      title: 'Our Services',
+      drawerIcon: ({ color, size }) => (
+        <Ionicons name="car-outline" size={size} color={color} />
+      ),
+      headerShown: true,
+    });
+  }, [navigation]);
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <ServicesTabs />
