@@ -248,11 +248,29 @@ function CeramicCoatingScreen({ navigation }) {
     </View>
   );
 }
-
-function ServicesTabs() {
+function ServicesTabs({ navigation }) {
   return (
     <Tab.Navigator
       screenOptions={{
+        headerShown: true, // Enable header for Tab.Navigator
+        headerStyle: {
+          backgroundColor: '#FFFFFF',
+          elevation: 0,
+          shadowOpacity: 0,
+        },
+        headerTintColor: '#000000',
+        headerTitleStyle: {
+          fontWeight: 'bold',
+        },
+        headerLeft: () => (
+          <TouchableOpacity
+            onPress={() => navigation.openDrawer()}
+            style={{ marginLeft: 15 }}
+          >
+            <Ionicons name="menu-outline" size={32} color="#000000" />
+          </TouchableOpacity>
+        ),
+        title: 'Our Services', // Set header title
         tabBarActiveTintColor: '#000000',
         tabBarInactiveTintColor: '#000000',
         tabBarIndicatorStyle: { backgroundColor: '#000000' },
@@ -278,16 +296,7 @@ function ServicesTabs() {
 
 export default function ServicesScreen({ navigation }) {
 
-  useLayoutEffect(() => {
-    navigation.setOptions({
-      title: 'Our Services',
-      drawerIcon: ({ color, size }) => (
-        <Ionicons name="car-outline" size={size} color={color} />
-      ),
-      headerShown: true,
-    });
-  }, [navigation]);
-
+ 
   return (
     <SafeAreaView style={styles.safeArea}>
       <ServicesTabs />

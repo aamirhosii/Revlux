@@ -50,16 +50,56 @@ function MainStack() {
         ),
       })}
     >
-      <Stack.Screen name="Home" component={HomeScreen} options={{ title: 'Shelby Auto Detailing' }} />
-      <Stack.Screen name="About" component={AboutScreen} options={{ title: 'About Us' }} />
-      <Stack.Screen name="Detailing" component={DetailingScreen} options={{ title: 'Mobile Detailing' }} />
-      <Stack.Screen name="Coating" component={CoatingScreen} options={{ title: 'Ceramic Coating' }} />
+      <Stack.Screen
+        name="Home"
+        component={HomeScreen}
+        options={{ title: 'Shelby Auto Detailing' }}
+      />
+      <Stack.Screen
+        name="About"
+        component={AboutScreen}
+        options={{ title: 'About Us' }}
+      />
+      <Stack.Screen
+        name="Detailing"
+        component={DetailingScreen}
+        options={{ title: 'Mobile Detailing' }}
+      />
+      <Stack.Screen
+        name="Coating"
+        component={CoatingScreen}
+        options={{ title: 'Ceramic Coating' }}
+      />
+      <Stack.Screen
+        name="Services"
+        component={ServicesScreen}
+        options={{ title: 'Our Services', headerShown: true }}
+      />
+      <Stack.Screen
+        name="Booking"
+        component={BookingScreen}
+        options={{ title: 'Book Appointment' }}
+      />
+      <Stack.Screen
+        name="AddOnsScreen"
+        component={AddOnsScreen}
+        options={{ title: 'Add Ons', headerShown: true }}
+      />
+    </Stack.Navigator>
+  );
+}
+
+
+// In AppNavigator.js
+function ServicesStack() {
+  return (
+    <Stack.Navigator>
       <Stack.Screen name="Services" component={ServicesScreen} options={{ headerShown: false }} />
-      <Stack.Screen name="Booking" component={BookingScreen} options={{ title: 'Book Appointment' }} />
       <Stack.Screen name="AddOnsScreen" component={AddOnsScreen} options={{ headerShown: false }} />
     </Stack.Navigator>
   );
 }
+
 
 function DrawerNavigator() {
   return (
@@ -99,13 +139,13 @@ function DrawerNavigator() {
       />
        <Drawer.Screen 
     name="Services" 
-    component={ServicesScreen}
+    component={ServicesStack}
     options={{
       title: 'Our Services',
       drawerIcon: ({ color, size }) => (
         <Ionicons name="car-outline" size={size} color={color} />
       ),
-      headerShown: true, // Ensure the header is shown with menu button
+      headerShown: true, 
     }}
   />
       <Drawer.Screen 
