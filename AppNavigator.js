@@ -4,6 +4,7 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { createDrawerNavigator } from '@react-navigation/drawer';
 import { TouchableOpacity, View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { CommonActions } from '@react-navigation/native';
 
 import LoginScreen from './LoginScreen';
 import SignupScreen from './SignupScreen';
@@ -14,6 +15,7 @@ import CoatingScreen from './CoatingScreen';
 import ServicesScreen from './ServicesScreen';
 import BookingScreen from './BookingScreen';
 import AddOnsScreen from './AddOn';
+import ContactScreen from './ContactScreen';
 
 // Placeholder components for new drawer screens
 const ProfileScreen = () => <View style={styles.placeholderScreen}><Text>Profile Screen</Text></View>;
@@ -30,6 +32,7 @@ const Drawer = createDrawerNavigator();
 function MainStack() {
   return (
     <Stack.Navigator
+    initialRouteName="Home"
       screenOptions={({ navigation }) => ({
         headerStyle: {
           backgroundColor: '#FFFFFF',
@@ -55,39 +58,10 @@ function MainStack() {
         component={HomeScreen}
         options={{ title: 'Shelby Auto Detailing' }}
       />
-      <Stack.Screen
-        name="About"
-        component={AboutScreen}
-        options={{ title: 'About Us' }}
-      />
-      <Stack.Screen
-        name="Detailing"
-        component={DetailingScreen}
-        options={{ title: 'Mobile Detailing' }}
-      />
-      <Stack.Screen
-        name="Coating"
-        component={CoatingScreen}
-        options={{ title: 'Ceramic Coating' }}
-      />
-      <Stack.Screen
-        name="Services"
-        component={ServicesScreen}
-        options={{ title: 'Our Services', headerShown: true }}
-      />
-      <Stack.Screen
-        name="Booking"
-        component={BookingScreen}
-        options={{ title: 'Book Appointment' }}
-      />
-      <Stack.Screen
-        name="AddOnsScreen"
-        component={AddOnsScreen}
-        options={{ title: 'Add Ons', headerShown: true }}
-      />
     </Stack.Navigator>
   );
 }
+
 
 
 // In AppNavigator.js
@@ -101,7 +75,7 @@ function ServicesStack() {
 }
 
 
-function DrawerNavigator() {
+function DrawerNavigator({ navigation }) {
   return (
     <Drawer.Navigator
       screenOptions={{
@@ -117,15 +91,23 @@ function DrawerNavigator() {
         },
       }}
     >
-      <Drawer.Screen 
-        name="MainStack" 
-        component={MainStack} 
+      <Drawer.Screen
+        name="MainStack"
+        component={MainStack}
         options={{
           title: 'Home',
           headerShown: false,
           drawerIcon: ({ color, size }) => (
             <Ionicons name="home-outline" size={size} color={color} />
           ),
+        }}
+        listeners={{
+          drawerItemPress: () => {
+            // Navigate directly to the Home screen inside MainStack
+            navigation.navigate('Main', {
+              screen: 'Home',
+            });
+          },
         }}
       />
       <Drawer.Screen 
@@ -152,6 +134,16 @@ function DrawerNavigator() {
         name="My Bookings" 
         component={MyBookingsScreen}
         options={{
+          drawerIcon: ({ color, size }) => (
+            <Ionicons name="calendar-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Drawer.Screen
+        name="Booking"
+        component={BookingScreen}
+        options={{
+          title: 'Make a Booking',
           drawerIcon: ({ color, size }) => (
             <Ionicons name="calendar-outline" size={size} color={color} />
           ),
@@ -193,12 +185,13 @@ function DrawerNavigator() {
           ),
         }}
       />
-      <Drawer.Screen 
-        name="Support" 
-        component={SupportScreen}
+      <Drawer.Screen
+        name="Contact"
+        component={ContactScreen}
         options={{
+          title: 'Contact Us',
           drawerIcon: ({ color, size }) => (
-            <Ionicons name="help-circle-outline" size={size} color={color} />
+            <Ionicons name="calendar-outline" size={size} color={color} />
           ),
         }}
       />
