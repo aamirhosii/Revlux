@@ -1,11 +1,16 @@
-import React from 'react';
+// AppNavigator.js
+import React, { useState, useEffect, createContext } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
-import { createDrawerNavigator } from '@react-navigation/drawer';
-import { TouchableOpacity, View, Text, StyleSheet } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { CommonActions } from '@react-navigation/native';
 
+// Drawer and Tab Navigators
+import { createDrawerNavigator } from '@react-navigation/drawer';
+
+// React Native Components
+import { TouchableOpacity, View, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+
+// Screens
 import LoginScreen from './LoginScreen';
 import SignupScreen from './SignupScreen';
 import HomeScreen from './HomeScreen';
@@ -16,6 +21,7 @@ import ServicesScreen from './ServicesScreen';
 import BookingScreen from './BookingScreen';
 import AddOnsScreen from './AddOn';
 import ContactScreen from './ContactScreen';
+import LogoutScreen from './LogoutScreen';
 
 // Placeholder components for new drawer screens
 const ProfileScreen = () => <View style={styles.placeholderScreen}><Text>Profile Screen</Text></View>;
@@ -25,6 +31,11 @@ const ReferFriendScreen = () => <View style={styles.placeholderScreen}><Text>Ref
 const GiftCardScreen = () => <View style={styles.placeholderScreen}><Text>Gift Card Screen</Text></View>;
 const RewardsScreen = () => <View style={styles.placeholderScreen}><Text>Rewards Screen</Text></View>;
 const SupportScreen = () => <View style={styles.placeholderScreen}><Text>Support Screen</Text></View>;
+const LogoutScreenComponent = () => <View style={styles.placeholderScreen}><Text>Logging out...</Text></View>; // We'll handle logout logic
+// AsyncStorage for token management
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+export const AuthContext = createContext();
 
 const Stack = createStackNavigator();
 const Drawer = createDrawerNavigator();
@@ -32,7 +43,7 @@ const Drawer = createDrawerNavigator();
 function MainStack() {
   return (
     <Stack.Navigator
-    initialRouteName="Home"
+      initialRouteName="Home"
       screenOptions={({ navigation }) => ({
         headerStyle: {
           backgroundColor: '#FFFFFF',
@@ -62,9 +73,7 @@ function MainStack() {
   );
 }
 
-
-
-// In AppNavigator.js
+// Services Stack
 function ServicesStack() {
   return (
     <Stack.Navigator>
@@ -74,8 +83,10 @@ function ServicesStack() {
   );
 }
 
-
+// Drawer Navigator
 function DrawerNavigator({ navigation }) {
+  const { signOut } = React.useContext(AuthContext);
+
   return (
     <Drawer.Navigator
       screenOptions={{
@@ -119,17 +130,17 @@ function DrawerNavigator({ navigation }) {
           ),
         }}
       />
-       <Drawer.Screen 
-    name="Services" 
-    component={ServicesStack}
-    options={{
-      title: 'Our Services',
-      drawerIcon: ({ color, size }) => (
-        <Ionicons name="car-outline" size={size} color={color} />
-      ),
-      headerShown: true, 
-    }}
-  />
+      <Drawer.Screen 
+        name="Services" 
+        component={ServicesStack}
+        options={{
+          title: 'Our Services',
+          drawerIcon: ({ color, size }) => (
+            <Ionicons name="car-outline" size={size} color={color} />
+          ),
+          headerShown: true, 
+        }}
+      />
       <Drawer.Screen 
         name="My Bookings" 
         component={MyBookingsScreen}
@@ -191,8 +202,22 @@ function DrawerNavigator({ navigation }) {
         options={{
           title: 'Contact Us',
           drawerIcon: ({ color, size }) => (
-            <Ionicons name="calendar-outline" size={size} color={color} />
+            <Ionicons name="call-outline" size={size} color={color} />
           ),
+        }}
+      />
+      <Drawer.Screen
+        name="Logout"
+        component={LogoutScreen}
+        options={{
+          drawerIcon: ({ color, size }) => (
+            <Ionicons name="log-out-outline" size={size} color={color} />
+          ),
+        }}
+        listeners={{
+          drawerItemPress: () => {
+            signOut(); // Call the signOut function from AuthContext
+          },
         }}
       />
     </Drawer.Navigator>
@@ -200,14 +225,62 @@ function DrawerNavigator({ navigation }) {
 }
 
 export default function AppNavigator() {
+  const [isLoading, setIsLoading] = useState(true);
+  const [userToken, setUserToken] = useState(null);
+
+  // Authentication functions
+  const authContext = {
+    signIn: async (token) => {
+      await AsyncStorage.setItem('token', token);
+      setUserToken(token);
+    },
+    signOut: async () => {
+      await AsyncStorage.removeItem('token');
+      setUserToken(null);
+    },
+  };
+
+  useEffect(() => {
+    const checkToken = async () => {
+      try {
+        const token = await AsyncStorage.getItem('token');
+        setUserToken(token);
+      } catch (e) {
+        console.error('Failed to load token', e);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    checkToken();
+  }, []);
+
+  if (isLoading) {
+    // Show a loading spinner while checking token
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#000000" />
+      </View>
+    );
+  }
+
   return (
-    <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="Login" component={LoginScreen} />
-        <Stack.Screen name="Signup" component={SignupScreen} />
-        <Stack.Screen name="Main" component={DrawerNavigator} />
-      </Stack.Navigator>
-    </NavigationContainer>
+    <AuthContext.Provider value={authContext}>
+      <NavigationContainer>
+        {userToken ? (
+          // User is logged in
+          <Stack.Navigator screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="Main" component={DrawerNavigator} />
+          </Stack.Navigator>
+        ) : (
+          // User is not logged in
+          <Stack.Navigator screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="Login" component={LoginScreen} />
+            <Stack.Screen name="Signup" component={SignupScreen} />
+          </Stack.Navigator>
+        )}
+      </NavigationContainer>
+    </AuthContext.Provider>
   );
 }
 
@@ -221,5 +294,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });

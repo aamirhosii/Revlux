@@ -46,13 +46,13 @@ export default function HomeScreen({ navigation }) {
       <StatusBar barStyle="dark-content" />
       <ScrollView contentContainerStyle={styles.scrollView}>
         <Image
-          source={require('./assets/logo.png')}
+          source={require('../assets/logo.png')}
           style={styles.logo}
           resizeMode="contain"
         />
         <View style={styles.heroContainer}>
           <ImageBackground
-            source={require('./assets/services/interior.png')}
+            source={require('../assets/services/interior.png')}
             style={styles.heroImage}
             resizeMode="cover"
           >

@@ -26,7 +26,7 @@ export default function AboutScreen() {
     <SafeAreaView style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.scrollView}>
         <ImageBackground
-          source={require('./assets/services/full.png')}
+          source={require('../assets/services/full.png')}
           style={styles.headerImage}
         >
           <LinearGradient

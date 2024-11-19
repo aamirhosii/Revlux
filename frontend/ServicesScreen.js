@@ -29,7 +29,7 @@ function DetailingScreen({ navigation }) {
     {
       id: 'core',
       name: 'CORE™',
-      image: require('./assets/core-car.png'),
+      image: require('../assets/core-car.png'),
       description: [
         'Comprehensive Vacuum Cleaning',
         'Dashboard Dusting & Wipe Down',
@@ -43,7 +43,7 @@ function DetailingScreen({ navigation }) {
     {
       id: 'pro',
       name: 'PRO™',
-      image: require('./assets/pro-car.png'),
+      image: require('../assets/pro-car.png'),
       description: [
         'All CORE™ services plus:',
         'Interior Deep Steam Cleaning',
@@ -56,7 +56,7 @@ function DetailingScreen({ navigation }) {
     {
       id: 'ultra',
       name: 'ULTRA™',
-      image: require('./assets/ultra-car.png'),
+      image: require('../assets/ultra-car.png'),
       description: [
         'All PRO™ services plus:',
         'Interior Ceramic Coating',
@@ -143,7 +143,7 @@ function CeramicCoatingScreen({ navigation }) {
     {
       id: 'sapphire',
       name: 'SAPPHIRE™',
-      image: require('./assets/Sapphire.png'),
+      image: require('../assets/Sapphire.png'),
       description: [
         'Exterior Foam Wash',
         'Exterior Contact Wash',
@@ -161,7 +161,7 @@ function CeramicCoatingScreen({ navigation }) {
     {
       id: 'emerald',
       name: 'EMERALD™',
-      image: require('./assets/Emerald.png'),
+      image: require('../assets/Emerald.png'),
       description: [
         'All SAPPHIRE™ services plus:',
         'Window Ceramic Coating (12+ Months)',
@@ -173,7 +173,7 @@ function CeramicCoatingScreen({ navigation }) {
     {
       id: 'diamond',
       name: 'DIAMOND™',
-      image: require('./assets/Diamond.png'),
+      image: require('../assets/Diamond.png'),
       description: [
         'All EMERALD™ services plus:',
         'Wheel Ceramic Coating (12+ Months)',

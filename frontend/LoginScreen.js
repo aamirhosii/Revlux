@@ -1,4 +1,8 @@
-import React, { useState } from 'react';
+// LoginScreen.js
+import React, { useState, useContext } from 'react';
+import axios from 'axios';
+import { AuthContext } from './AppNavigator';
+
 import {
   View,
   Text,
@@ -14,13 +18,14 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 
-export default function LoginScreen() {
+
+export default function LoginScreen({navigation}) {
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [usePhoneNumber, setUsePhoneNumber] = useState(false);
-  const navigation = useNavigation();
+  const { signIn } = useContext(AuthContext);
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     if (!identifier || !password) {
       Alert.alert('Error', 'Please fill in all fields');
       return;
@@ -36,14 +41,24 @@ export default function LoginScreen() {
       return;
     }
 
-    // Here you would typically call your authentication API
-    console.log('Login attempt with:', { identifier, password });
-    navigation.navigate('Main', {
-      screen: 'MainStack',
-      params: {
-        screen: 'Home',
-      },
-    });
+    try {
+        const response = await axios.post('http://localhost:5001/auth/login', {
+        identifier,
+        password,
+      });
+
+      if (response.status === 200) {
+        const { token, user } = response.data;
+        // Store the token and update auth state
+        await signIn(token);
+
+        Alert.alert('Success', `Welcome back, ${user.name}!`);
+        // No need to navigate manually; AppNavigator will handle it
+      }
+    } catch (error) {
+      console.error(error);
+      Alert.alert('Error', error.response?.data?.message || 'Invalid credentials');
+    }
   };
 
   return (

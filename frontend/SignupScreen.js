@@ -1,4 +1,7 @@
-import React, { useState } from 'react';
+// SignupScreen.js
+import React, { useState, useContext } from 'react';
+import axios from 'axios';
+import { AuthContext } from './AppNavigator';
 import {
   View,
   Text,
@@ -22,6 +25,7 @@ export default function SignupScreen() {
   const [step, setStep] = useState(1);
   const [generatedOtp, setGeneratedOtp] = useState('');
   const navigation = useNavigation();
+  const { signIn } = useContext(AuthContext);
 
   const generateOtp = () => {
     // In a real application, this would be done server-side
@@ -61,21 +65,43 @@ export default function SignupScreen() {
     setStep(2);
   };
 
-  const handleOtpSubmit = () => {
+  const handleOtpSubmit = async () => {
     if (otp !== generatedOtp) {
       Alert.alert('Error', 'Invalid OTP. Please try again.');
       return;
     }
 
-    // Here you would typically call your registration API
-    console.log('Signup successful:', { name, email: usePhoneNumber ? phoneNumber : email, password });
-    // For demo purposes, we'll just navigate to the Home screen
-    navigation.navigate('Main', {
-      screen: 'MainStack',
-      params: {
-        screen: 'Home',
-      },
-    });
+    try {
+      // Prepare the data
+      const data = {
+        name,
+        email: usePhoneNumber ? null : email,
+        phoneNumber: usePhoneNumber ? phoneNumber : null,
+        password,
+      };
+
+      // Send POST request to backend
+      const response = await axios.post('http://localhost:5001/auth/signup', data);
+
+      if (response.status === 201) {
+        // Optionally log in the user automatically
+        const loginResponse = await axios.post('http://localhost:5001/auth/login', {
+          identifier: usePhoneNumber ? phoneNumber : email,
+          password,
+        });
+
+        if (loginResponse.status === 200) {
+          const { token, user } = loginResponse.data;
+          await signIn(token);
+
+          Alert.alert('Success', `Welcome, ${user.name}!`);
+          // No need to navigate manually; AppNavigator will handle it
+        }
+      }
+    } catch (error) {
+      console.error(error);
+      Alert.alert('Error', error.response?.data?.message || 'Something went wrong');
+    }
   };
 
   return (
