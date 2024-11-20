@@ -22,11 +22,10 @@ import BookingScreen from './BookingScreen';
 import AddOnsScreen from './AddOn';
 import ContactScreen from './ContactScreen';
 import LogoutScreen from './LogoutScreen';
+import ProfileScreen from './ProfileScreen';
 
 // Placeholder components for new drawer screens
-const ProfileScreen = () => <View style={styles.placeholderScreen}><Text>Profile Screen</Text></View>;
 const MyBookingsScreen = () => <View style={styles.placeholderScreen}><Text>My Bookings Screen</Text></View>;
-const MyAccountScreen = () => <View style={styles.placeholderScreen}><Text>My Account Screen</Text></View>;
 const ReferFriendScreen = () => <View style={styles.placeholderScreen}><Text>Refer a Friend Screen</Text></View>;
 const GiftCardScreen = () => <View style={styles.placeholderScreen}><Text>Gift Card Screen</Text></View>;
 const RewardsScreen = () => <View style={styles.placeholderScreen}><Text>Rewards Screen</Text></View>;
@@ -157,15 +156,6 @@ function DrawerNavigator({ navigation }) {
           title: 'Make a Booking',
           drawerIcon: ({ color, size }) => (
             <Ionicons name="calendar-outline" size={size} color={color} />
-          ),
-        }}
-      />
-      <Drawer.Screen 
-        name="My Account" 
-        component={MyAccountScreen}
-        options={{
-          drawerIcon: ({ color, size }) => (
-            <Ionicons name="settings-outline" size={size} color={color} />
           ),
         }}
       />
