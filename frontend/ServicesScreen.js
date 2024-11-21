@@ -1,4 +1,4 @@
-import React, { useState, useRef, useLayoutEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -8,24 +8,88 @@ import {
   Image,
   TouchableOpacity,
   Dimensions,
-  Platform,
 } from 'react-native';
-import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
-import { createStackNavigator } from '@react-navigation/stack';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
 import Carousel, { Pagination } from 'react-native-snap-carousel';
 
-// Import the AddOn component
-import AddOn from './AddOn';
-
-const Tab = createMaterialTopTabNavigator();
-const Stack = createStackNavigator();
 const { width: screenWidth } = Dimensions.get('window');
 
-function DetailingScreen({ navigation }) {
+const PackageCard = ({ item }) => {
+  return (
+    <View style={styles.packageCard}>
+      <Text style={styles.packageTitle}>{item.name}</Text>
+      <Image source={item.image} style={styles.packageImage} resizeMode="contain" />
+      <Text style={styles.packagePrice}>{item.price}</Text>
+      <Text style={styles.packageDuration}>{item.duration}</Text>
+    </View>
+  );
+};
+
+const ServiceSection = ({ packages, title, subTitle, navigation }) => {
   const [activePackage, setActivePackage] = useState(0);
   const carouselRef = useRef(null);
-  const packages = [
+
+  return (
+    <View style={styles.serviceSection}>
+      <Text style={styles.header}>{title}</Text>
+      <Text style={styles.subHeader}>{subTitle}</Text>
+
+      <Carousel
+        ref={carouselRef}
+        data={packages}
+        renderItem={({ item }) => <PackageCard item={item} />}
+        sliderWidth={screenWidth}
+        itemWidth={screenWidth - 60}
+        onSnapToItem={(index) => setActivePackage(index)}
+        containerCustomStyle={styles.carouselContainer}
+      />
+
+      <Pagination
+        dotsLength={packages.length}
+        activeDotIndex={activePackage}
+        containerStyle={styles.paginationContainer}
+        dotStyle={styles.paginationDot}
+        inactiveDotStyle={styles.paginationInactiveDot}
+        inactiveDotOpacity={0.4}
+        inactiveDotScale={0.6}
+      />
+
+      <View style={styles.detailsContainer}>
+        <Text style={styles.detailsTitle}>Service Details</Text>
+        {packages[activePackage].description.map((item, index) => (
+          <View key={index} style={styles.detailItem}>
+            <Ionicons name="checkmark-circle" size={20} color="#000" />
+            <Text style={styles.detailText}>{item}</Text>
+          </View>
+        ))}
+      </View>
+
+      <TouchableOpacity
+        style={styles.bookNowButton}
+        onPress={() => {
+          navigation.navigate('AddOnsScreen', {
+            selectedPackage: packages[activePackage],
+          });
+        }}
+      >
+        <LinearGradient
+          colors={['#000', '#333']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={styles.bookNowGradient}
+        >
+          <Text style={styles.bookNowText}>BOOK {packages[activePackage].name}</Text>
+        </LinearGradient>
+      </TouchableOpacity>
+    </View>
+  );
+};
+
+export default function LuxuryCarService({ navigation }) {
+  const [activeService, setActiveService] = useState('detailing');
+
+  const detailingPackages = [
     {
       id: 'core',
       name: 'CORE™',
@@ -70,76 +134,7 @@ function DetailingScreen({ navigation }) {
     },
   ];
 
-  const renderPackage = ({ item, index }) => (
-    <TouchableOpacity
-      style={styles.packageCard}
-      onPress={() => setActivePackage(index)}
-      activeOpacity={0.9}
-    >
-      <View style={styles.packageContent}>
-        <Text style={styles.packageTitle}>{item.name}</Text>
-        <Image source={item.image} style={styles.packageImage} resizeMode="contain" />
-        <Text style={styles.packagePrice}>{item.price}</Text>
-        <Text style={styles.packageDuration}>{item.duration}</Text>
-      </View>
-    </TouchableOpacity>
-  );
-
-  return (
-    <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollView}>
-        <Text style={styles.header}>LUXURY DETAILING</Text>
-        <Text style={styles.subHeader}>Experience Premium Car Care at Your Doorstep</Text>
-
-        <Carousel
-          ref={carouselRef}
-          data={packages}
-          renderItem={renderPackage}
-          sliderWidth={screenWidth}
-          itemWidth={screenWidth - 60}
-          onSnapToItem={(index) => setActivePackage(index)}
-          containerCustomStyle={styles.carouselContainer}
-        />
-        <Pagination
-          dotsLength={packages.length}
-          activeDotIndex={activePackage}
-          containerStyle={styles.paginationContainer}
-          dotStyle={styles.paginationDot}
-          inactiveDotStyle={styles.paginationInactiveDot}
-          inactiveDotOpacity={0.4}
-          inactiveDotScale={0.6}
-        />
-
-        <View style={styles.detailsContainer}>
-          <Text style={styles.detailsTitle}>Service Details</Text>
-          {packages[activePackage].description.map((item, index) => (
-            <View key={index} style={styles.detailItem}>
-              <MaterialCommunityIcons name="check-circle" size={20} color="#000000" />
-              <Text style={styles.detailText}>{item}</Text>
-            </View>
-          ))}
-        </View>
-
-        <TouchableOpacity
-          style={styles.bookNowButton}
-          onPress={() => {
-            navigation.navigate('AddOnsScreen', {
-              selectedPackage: packages[activePackage],
-            });            
-          }}
-        >
-          <Text style={styles.bookNowText}>BOOK {packages[activePackage].name}</Text>
-        </TouchableOpacity>
-      </ScrollView>
-    </View>
-  );
-}
-
-function CeramicCoatingScreen({ navigation }) {
-  const [activePackage, setActivePackage] = useState(0);
-  const carouselRef = useRef(null);
-
-  const packages = [
+  const ceramicCoatingPackages = [
     {
       id: 'sapphire',
       name: 'SAPPHIRE™',
@@ -148,15 +143,12 @@ function CeramicCoatingScreen({ navigation }) {
         'Exterior Foam Wash',
         'Exterior Contact Wash',
         'Tire & Wheel Detail',
-        'Tire & Wheel Dressing',
-        'Break Dust Removal',
-        'Road Film & Iron Decontamination',
-        'Paint Decontamination (Clay Bar Treatment)',
-        '1 - Step Paint Correction & Polish',
+        'Paint Decontamination',
+        '1-Step Paint Correction',
         'Exterior Ceramic Coating (2 Years)',
       ],
-      duration: '90 Minutes*',
-      price: '$129',
+      duration: '4 Hours*',
+      price: '$699',
     },
     {
       id: 'emerald',
@@ -164,11 +156,12 @@ function CeramicCoatingScreen({ navigation }) {
       image: require('../assets/Emerald.png'),
       description: [
         'All SAPPHIRE™ services plus:',
-        'Window Ceramic Coating (12+ Months)',
+        'Window Ceramic Coating',
+        '2-Step Paint Correction',
         'Exterior Ceramic Coating (5 Years)',
       ],
-      duration: '440 Minutes*',
-      price: '$199',
+      duration: '6 Hours*',
+      price: '$999',
     },
     {
       id: 'diamond',
@@ -176,256 +169,174 @@ function CeramicCoatingScreen({ navigation }) {
       image: require('../assets/Diamond.png'),
       description: [
         'All EMERALD™ services plus:',
-        'Wheel Ceramic Coating (12+ Months)',
+        'Wheel Ceramic Coating',
+        '3-Step Paint Correction',
         'Exterior Ceramic Coating (9 Years)',
       ],
-      duration: '180 Minutes*',
-      price: '$299',
+      duration: '8 Hours*',
+      price: '$1499',
     },
   ];
 
-  const renderPackage = ({ item, index }) => (
-    <TouchableOpacity
-      style={styles.packageCard}
-      onPress={() => setActivePackage(index)}
-      activeOpacity={0.9}
-    >
-      <View style={styles.packageContent}>
-        <Text style={styles.packageTitle}>{item.name}</Text>
-        <Image source={item.image} style={styles.packageImage} resizeMode="contain" />
-        <Text style={styles.packagePrice}>{item.price}</Text>
-        <Text style={styles.packageDuration}>{item.duration}</Text>
-      </View>
-    </TouchableOpacity>
-  );
-
-  return (
-    <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollView}>
-        <Text style={styles.header}>LUXURY DETAILING</Text>
-        <Text style={styles.subHeader}>Experience Premium Car Care at Your Doorstep</Text>
-
-        <Carousel
-          ref={carouselRef}
-          data={packages}
-          renderItem={renderPackage}
-          sliderWidth={screenWidth}
-          itemWidth={screenWidth - 60}
-          onSnapToItem={(index) => setActivePackage(index)}
-          containerCustomStyle={styles.carouselContainer}
-        />
-        <Pagination
-          dotsLength={packages.length}
-          activeDotIndex={activePackage}
-          containerStyle={styles.paginationContainer}
-          dotStyle={styles.paginationDot}
-          inactiveDotStyle={styles.paginationInactiveDot}
-          inactiveDotOpacity={0.4}
-          inactiveDotScale={0.6}
-        />
-
-        <View style={styles.detailsContainer}>
-          <Text style={styles.detailsTitle}>Service Details</Text>
-          {packages[activePackage].description.map((item, index) => (
-            <View key={index} style={styles.detailItem}>
-              <MaterialCommunityIcons name="check-circle" size={20} color="#000000" />
-              <Text style={styles.detailText}>{item}</Text>
-            </View>
-          ))}
-        </View>
-
-        <TouchableOpacity
-          style={styles.bookNowButton}
-          onPress={() => {
-            navigation.navigate('AddOnsScreen', {
-              selectedPackage: packages[activePackage],
-            });            
-          }}
-        >
-          <Text style={styles.bookNowText}>BOOK {packages[activePackage].name}</Text>
-        </TouchableOpacity>
-      </ScrollView>
-    </View>
-  );
-}
-function ServicesTabs({ navigation }) {
-  return (
-    <Tab.Navigator
-      screenOptions={{
-        headerShown: true, // Enable header for Tab.Navigator
-        headerStyle: {
-          backgroundColor: '#FFFFFF',
-          elevation: 0,
-          shadowOpacity: 0,
-        },
-        headerTintColor: '#000000',
-        headerTitleStyle: {
-          fontWeight: 'bold',
-        },
-        headerLeft: () => (
-          <TouchableOpacity
-            onPress={() => navigation.openDrawer()}
-            style={{ marginLeft: 15 }}
-          >
-            <Ionicons name="menu-outline" size={32} color="#000000" />
-          </TouchableOpacity>
-        ),
-        title: 'Our Services', // Set header title
-        tabBarActiveTintColor: '#000000',
-        tabBarInactiveTintColor: '#000000',
-        tabBarIndicatorStyle: { backgroundColor: '#000000' },
-        tabBarLabelStyle: {
-          fontSize: 16,
-          fontWeight: 'bold',
-          textTransform: 'uppercase',
-          color: '#000000',
-        },
-        tabBarStyle: {
-          backgroundColor: '#FFFFFF',
-          borderBottomWidth: 0,
-          elevation: 0,
-          shadowOpacity: 0,
-        },
-      }}
-    >
-      <Tab.Screen name="Detailing" component={DetailingScreen} />
-      <Tab.Screen name="Ceramic Coating" component={CeramicCoatingScreen} />
-    </Tab.Navigator>
-  );
-}
-
-export default function ServicesScreen({ navigation }) {
-
- 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ServicesTabs />
+      <ScrollView style={styles.container}>
+        <View style={styles.tabBar}>
+          <TouchableOpacity
+            style={[styles.tab, activeService === 'detailing' && styles.activeTab]}
+            onPress={() => setActiveService('detailing')}
+          >
+            <Text style={[styles.tabText, activeService === 'detailing' && styles.activeTabText]}>
+              Detailing
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tab, activeService === 'ceramicCoating' && styles.activeTab]}
+            onPress={() => setActiveService('ceramicCoating')}
+          >
+            <Text
+              style={[styles.tabText, activeService === 'ceramicCoating' && styles.activeTabText]}
+            >
+              Ceramic Coating
+            </Text>
+          </TouchableOpacity>
+        </View>
+        {activeService === 'detailing' ? (
+          <ServiceSection
+            packages={detailingPackages}
+            title="LUXURY DETAILING"
+            subTitle="Experience Premium Car Care at Your Doorstep"
+            navigation={navigation}
+          />
+        ) : (
+          <ServiceSection
+            packages={ceramicCoatingPackages}
+            title="CERAMIC COATING"
+            subTitle="Ultimate Protection, Unmatched Shine"
+            navigation={navigation}
+          />
+        )}
+      </ScrollView>
     </SafeAreaView>
   );
 }
 
-
-function getHeaderTitle(route) {
-  const routeName = route.state?.routes[route.state.index]?.name ?? 'Packages';
-
-  switch (routeName) {
-    case 'Detailing':
-      return 'Detailing Packages';
-    case 'Ceramic Coating':
-      return 'Ceramic Coating Packages';
-    default:
-      return 'Our Services';
-  }
-}
-
-// Styles
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#FFF',
   },
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#FFF',
   },
-  scrollView: {
-    flexGrow: 1,
-    paddingVertical: 15,
+  tabBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    paddingVertical: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+  },
+  tab: {
+    paddingVertical: 10,
     paddingHorizontal: 20,
-    alignItems: 'center',
-    backgroundColor: '#F2F2F2',
+  },
+  activeTab: {
+    borderBottomWidth: 2,
+    borderBottomColor: '#000',
+  },
+  tabText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#888',
+    textTransform: 'uppercase',
+  },
+  activeTabText: {
+    color: '#000',
+  },
+  serviceSection: {
+    paddingVertical: 30,
+    paddingHorizontal: 20,
   },
   header: {
-    fontSize: 28,
+    fontSize: 36,
     fontWeight: '700',
-    marginTop: 0,
-    marginBottom: 10,
-    color: '#000000',
+    color: '#000',
     textAlign: 'center',
-    letterSpacing: 1.5,
+    marginBottom: 10,
+    letterSpacing: 1,
   },
   subHeader: {
-    fontSize: 16,
-    fontWeight: '500',
-    marginBottom: 20,
-    color: '#333333',
+    fontSize: 18,
+    color: '#555',
     textAlign: 'center',
-    paddingHorizontal: 30,
-    lineHeight: 22,
+    marginBottom: 30,
+    paddingHorizontal: 20,
   },
   carouselContainer: {
     marginBottom: 20,
   },
   packageCard: {
     width: screenWidth - 60,
-    height: 300,
+    height: 350,
     borderRadius: 20,
     overflow: 'hidden',
     marginBottom: 20,
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#000000',
+    backgroundColor: '#FFF',
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
     shadowRadius: 5,
     elevation: 3,
-  },
-  packageContent: {
-    flex: 1,
-    padding: 20,
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'space-around',
+    padding: 15,
   },
   packageTitle: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#000000',
+    color: '#000',
     textTransform: 'uppercase',
-    letterSpacing: 2,
+    letterSpacing: 1.5,
   },
   packageImage: {
     width: '80%',
-    height: 120,
+    height: 150,
+    marginVertical: 15,
   },
   packagePrice: {
-    fontSize: 32,
+    fontSize: 28,
     fontWeight: '700',
-    color: '#000000',
+    color: '#000',
   },
   packageDuration: {
     fontSize: 16,
-    color: '#555555',
+    color: '#555',
   },
   paginationContainer: {
     paddingVertical: 8,
   },
   paginationDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
     marginHorizontal: 8,
-    backgroundColor: '#000000',
+    backgroundColor: '#000',
   },
   paginationInactiveDot: {
-    backgroundColor: '#888888',
+    backgroundColor: '#888',
   },
   detailsContainer: {
-    width: '100%',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F5F5F5',
     padding: 20,
-    borderRadius: 15,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: '#EEEEEE',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    borderRadius: 20,
+    marginTop: 30,
+    marginBottom: 30,
   },
   detailsTitle: {
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: '600',
-    color: '#000000',
+    color: '#000',
     marginBottom: 15,
   },
   detailItem: {
@@ -435,81 +346,23 @@ const styles = StyleSheet.create({
   },
   detailText: {
     fontSize: 16,
-    color: '#000000',
+    color: '#333',
     marginLeft: 10,
   },
   bookNowButton: {
-    backgroundColor: '#000000',
-    paddingVertical: 15,
-    paddingHorizontal: 30,
     borderRadius: 30,
-    alignItems: 'center',
-    width: '100%',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 5,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
+    overflow: 'hidden',
     marginTop: 20,
+  },
+  bookNowGradient: {
+    paddingVertical: 15,
+    alignItems: 'center',
   },
   bookNowText: {
-    color: '#FFFFFF',
-    fontWeight: 'bold',
+    color: '#FFF',
     fontSize: 18,
+    fontWeight: '700',
     textTransform: 'uppercase',
     letterSpacing: 1,
-  },
-  addOnItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 15,
-    paddingHorizontal: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#EEEEEE',
-    width: '100%',
-  },
-  addOnTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#000000',
-  },
-  addOnPrice: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#000000',
-  },
-  checkoutItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    width: '100%',
-    paddingVertical: 10,
-  },
-  totalContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    width: '100%',
-    borderTopWidth: 1,
-    borderTopColor: '#EEEEEE',
-    marginTop: 20,
-    paddingTop: 20,
-  },
-  totalText: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#000000',
-  },
-  totalPrice: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#000000',
   },
 });
