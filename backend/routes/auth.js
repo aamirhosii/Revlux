@@ -30,13 +30,23 @@ router.post('/signup', async (req, res) => {
   const { name, email, phoneNumber, password } = req.body;
 
   try {
-    // Check if user already exists
+    // Ensure at least one identifier is provided
+    if (!email && !phoneNumber) {
+      return res.status(400).json({ message: 'Either email or phone number is required' });
+    }
+
+    // Check if the user already exists by email or phone number
     const userExists = await User.findOne({
       $or: [{ email }, { phoneNumber }],
     });
 
     if (userExists) {
-      return res.status(409).json({ message: 'User already exists' });
+      const conflictFields = [];
+      if (userExists.email === email) conflictFields.push('email');
+      if (userExists.phoneNumber === phoneNumber) conflictFields.push('phone number');
+      return res.status(409).json({
+        message: `The following already exist: ${conflictFields.join(', ')}`,
+      });
     }
 
     // Hash password
@@ -59,11 +69,35 @@ router.post('/signup', async (req, res) => {
   }
 });
 
-// Login Route
-router.post('/login', async (req, res) => {
-  const { identifier, password } = req.body; // identifier can be email or phone number
+router.post('/check-uniqueness', async (req, res) => {
+  const { name, email, phoneNumber } = req.body;
 
   try {
+    const userExists = await User.findOne({
+      $or: [{ name }, { email }, { phoneNumber }],
+    });
+
+    if (userExists) {
+      return res.status(409).json({
+        message: 'Username, email, or phone number already in use',
+      });
+    }
+
+    res.status(200).json({ isUnique: true });
+  } catch (err) {
+    console.error('Uniqueness Check Error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+router.post('/login', async (req, res) => {
+  const { identifier, password } = req.body; // `identifier` can be either email or phoneNumber
+
+  try {
+    if (!identifier || !password) {
+      return res.status(400).json({ message: 'Identifier and password are required' });
+    }
+
     // Find user by email or phone number
     const user = await User.findOne({
       $or: [{ email: identifier }, { phoneNumber: identifier }],
@@ -90,8 +124,8 @@ router.post('/login', async (req, res) => {
       user: { name: user.name, email: user.email, phoneNumber: user.phoneNumber },
     });
   } catch (err) {
-    console.error(err);
-    res.status(500).send('Server error');
+    console.error('Login Error:', err);
+    res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
 

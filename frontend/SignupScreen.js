@@ -1,4 +1,3 @@
-// SignupScreen.js
 import React, { useState, useContext } from 'react';
 import axios from 'axios';
 import { AuthContext } from './AppNavigator';
@@ -28,16 +27,32 @@ export default function SignupScreen() {
   const { signIn } = useContext(AuthContext);
 
   const generateOtp = () => {
-    // In a real application, this would be done server-side
     const newOtp = Math.floor(100000 + Math.random() * 900000).toString();
     setGeneratedOtp(newOtp);
-    console.log('Generated OTP:', newOtp); // For demonstration purposes
+    console.log('Generated OTP:', newOtp);
     return newOtp;
   };
-
-  const handleInitialSubmit = () => {
-    if (!name || (!email && !phoneNumber) || !password || !confirmPassword) {
-      Alert.alert('Error', 'Please fill in all fields');
+  const checkUniqueness = async () => {
+    try {
+      const response = await axios.post('http://localhost:5001/auth/check-uniqueness', {
+        name,
+        email: usePhoneNumber ? null : email,
+        phoneNumber: usePhoneNumber ? phoneNumber : null,
+      });
+  
+      if (response.status === 200) {
+        return true; // Fields are unique
+      }
+    } catch (err) {
+      console.error('Uniqueness Check Error:', err.response?.data?.message || err.message);
+      Alert.alert('Error', err.response?.data?.message || 'Error checking uniqueness');
+      return false;
+    }
+  };
+  
+  const handleInitialSubmit = async () => {
+    if (!name || !password || !confirmPassword) {
+      Alert.alert('Error', 'Please fill in all required fields');
       return;
     }
     if (password !== confirmPassword) {
@@ -48,23 +63,22 @@ export default function SignupScreen() {
       Alert.alert('Error', 'Password must be at least 8 characters long');
       return;
     }
-    if (!usePhoneNumber && !/\S+@\S+\.\S+/.test(email)) {
-      Alert.alert('Error', 'Please enter a valid email address');
+  
+    // Ensure at least one of email or phone number is provided
+    if (!email && !phoneNumber) {
+      Alert.alert('Error', 'Please provide either an email or phone number');
       return;
     }
-    if (usePhoneNumber && !/^\+?[1-9]\d{1,14}$/.test(phoneNumber)) {
-      Alert.alert('Error', 'Please enter a valid phone number');
-      return;
-    }
-
-    // Generate and send OTP
+  
+    // Proceed with uniqueness check or OTP generation
+    const isUnique = await checkUniqueness();
+    if (!isUnique) return;
+  
     const newOtp = generateOtp();
-    // In a real application, you would send this OTP to the user's email or phone
     console.log(`OTP sent to ${usePhoneNumber ? phoneNumber : email}: ${newOtp}`);
-
     setStep(2);
   };
-
+  
   const handleOtpSubmit = async () => {
     if (otp !== generatedOtp) {
       Alert.alert('Error', 'Invalid OTP. Please try again.');
@@ -72,7 +86,6 @@ export default function SignupScreen() {
     }
 
     try {
-      // Prepare the data
       const data = {
         name,
         email: usePhoneNumber ? null : email,
@@ -80,11 +93,9 @@ export default function SignupScreen() {
         password,
       };
 
-      // Send POST request to backend
       const response = await axios.post('http://localhost:5001/auth/signup', data);
 
       if (response.status === 201) {
-        // Optionally log in the user automatically
         const loginResponse = await axios.post('http://localhost:5001/auth/login', {
           identifier: usePhoneNumber ? phoneNumber : email,
           password,
@@ -95,7 +106,6 @@ export default function SignupScreen() {
           await signIn(token);
 
           Alert.alert('Success', `Welcome, ${user.name}!`);
-          // No need to navigate manually; AppNavigator will handle it
         }
       }
     } catch (error) {
