@@ -15,7 +15,7 @@ import { useNavigation } from '@react-navigation/native';
 
 export default function SignupScreen() {
   const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState('');cd 
   const [phoneNumber, setPhoneNumber] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
