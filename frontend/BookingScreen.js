@@ -1,3 +1,4 @@
+// BookingScreen.js
 import React, { useState } from 'react';
 import {
   View,
@@ -5,146 +6,131 @@ import {
   StyleSheet,
   SafeAreaView,
   ScrollView,
-  TextInput,
   TouchableOpacity,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
+import { Calendar } from 'react-native-calendars';
+import axios from 'axios';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const postalCodeData = {
-  cities: {
-    Toronto: {
-      postal_code_prefixes: ['M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7', 'M8', 'M9'],
-    },
-    Vaughan: {
-      postal_code_prefixes: ['L4H', 'L4J', 'L4K', 'L6A'],
-    },
-    'Richmond Hill': {
-      postal_code_prefixes: ['L4B', 'L4C', 'L4E', 'L4S'],
-    },
-    Etobicoke: {
-      postal_code_prefixes: ['M8V', 'M8W', 'M8X', 'M8Y', 'M8Z', 'M9A', 'M9B', 'M9C'],
-    },
-    Oakville: {
-      postal_code_prefixes: ['L6H', 'L6J', 'L6K', 'L6L', 'L6M'],
-    },
-    Maple: {
-      postal_code_prefixes: ['L6A'],
-    },
-    Markham: {
-      postal_code_prefixes: ['L3P', 'L3R', 'L3S', 'L6B', 'L6C', 'L6E'],
-    },
-    Scarborough: {
-      postal_code_prefixes: [
-        'M1B', 'M1C', 'M1E', 'M1G', 'M1H', 'M1J', 'M1K', 'M1L', 'M1M',
-        'M1N', 'M1P', 'M1R', 'M1S', 'M1T', 'M1V', 'M1W', 'M1X',
-      ],
-    },
-    Newmarket: {
-      postal_code_prefixes: ['L3X', 'L3Y'],
-    },
-    Mississauga: {
-      postal_code_prefixes: [
-        'L4T', 'L4W', 'L4X', 'L4Y', 'L5A', 'L5B', 'L5C', 'L5E', 'L5G',
-        'L5H', 'L5J', 'L5K', 'L5L', 'L5M', 'L5N', 'L5P', 'L5R', 'L5S', 'L5T',
-      ],
-    },
-  },
-};
+export default function BookingScreen({ navigation }) {
+  const [selectedDate, setSelectedDate] = useState(null);
+  const [availableSlots, setAvailableSlots] = useState([]);
+  const [loadingSlots, setLoadingSlots] = useState(false);
 
-export default function BookingScreen() {
-  const [postalCode, setPostalCode] = useState('');
+  // Fetch availability from the backend and filter for the selected date
+  const fetchAvailableSlots = async (date) => {
+    setLoadingSlots(true);
+    try {
+      const response = await axios.get('http://localhost:5001/availability');
+      // response.data should be an array of availability objects
+      const availability = response.data.find((avail) => {
+        const availDate = new Date(avail.date);
+        availDate.setHours(0, 0, 0, 0);
+        const selected = new Date(date);
+        selected.setHours(0, 0, 0, 0);
+        return availDate.getTime() === selected.getTime();
+      });
+      if (availability) {
+        // Only show time slots that are still available
+        setAvailableSlots(availability.timeSlots.filter((ts) => ts.isAvailable));
+      } else {
+        setAvailableSlots([]);
+      }
+    } catch (error) {
+      console.error('Error fetching availability:', error);
+      Alert.alert('Error', 'Unable to fetch available slots.');
+    }
+    setLoadingSlots(false);
+  };
 
-  const checkServiceAvailability = () => {
-    const cityNames = Object.keys(postalCodeData.cities);
-    const isAvailable = cityNames.some((city) => {
-      const prefixes = postalCodeData.cities[city].postal_code_prefixes;
-      return prefixes.some((prefix) => postalCode.startsWith(prefix));
-    });
+  const onDayPress = (day) => {
+    setSelectedDate(day.dateString);
+    fetchAvailableSlots(day.dateString);
+  };
 
-    if (isAvailable) {
-      Alert.alert('Service Available', 'We provide services in your area.');
-    } else {
-      Alert.alert('Service Unavailable', 'Sorry, we do not provide services in your area.');
+  const bookSlot = async (slot) => {
+    if (!selectedDate) {
+      Alert.alert('Select Date', 'Please select a date first.');
+      return;
+    }
+    try {
+      // Get the token from AsyncStorage
+      const token = await AsyncStorage.getItem('token');
+      const response = await axios.post(
+        'http://localhost:5001/bookings',
+        {
+          service: 'detailing', // Or let the user select the service
+          appointmentDate: selectedDate,
+          timeSlot: slot.slot, // assuming each slot object has a "slot" property
+        },
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+      if (response.status === 201) {
+        Alert.alert('Success', 'Booking confirmed!');
+        // Optionally refresh the available slots
+        fetchAvailableSlots(selectedDate);
+      }
+    } catch (error) {
+      console.error('Booking error:', error.response ? error.response.data : error);
+      Alert.alert(
+        'Booking Error',
+        error.response?.data?.message || 'Error booking slot.'
+      );
     }
   };
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollView}>
-        <View style={styles.content}>
-          <Text style={styles.title}>Mobile Detailing Services</Text>
-          <Text style={styles.description}>
-            Experience the convenience of our professional mobile detailing services.
-            We bring our expertise directly to your location, ensuring your vehicle
-            receives top-notch care without you having to leave your home or office.
+      <ScrollView contentContainerStyle={styles.content}>
+        <Text style={styles.title}>Book an Appointment</Text>
+        <Calendar
+          onDayPress={onDayPress}
+          markedDates={selectedDate ? { [selectedDate]: { selected: true } } : {}}
+          style={styles.calendar}
+        />
+        <Text style={styles.subtitle}>
+          Available Time Slots on {selectedDate || 'Select a date'}
+        </Text>
+        {loadingSlots ? (
+          <ActivityIndicator size="large" color="#000" />
+        ) : availableSlots.length > 0 ? (
+          availableSlots.map((slot, index) => (
+            <TouchableOpacity
+              key={index}
+              style={styles.slotButton}
+              onPress={() => bookSlot(slot)}
+            >
+              <Text style={styles.slotText}>{slot.slot}</Text>
+            </TouchableOpacity>
+          ))
+        ) : (
+          <Text style={styles.noSlotsText}>
+            No available slots for the selected date.
           </Text>
-          <Text style={styles.subtitle}>Check Service Availability</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Enter your postal code"
-            placeholderTextColor="#555"
-            value={postalCode}
-            onChangeText={setPostalCode}
-          />
-          <TouchableOpacity style={styles.button} onPress={checkServiceAvailability}>
-            <Text style={styles.buttonText}>Check Availability</Text>
-          </TouchableOpacity>
-        </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#ffffff', // White background
-  },
-  scrollView: {
-    flexGrow: 1,
-  },
-  content: {
-    padding: 20,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#000000', // Black text for title
-    marginBottom: 15,
-    textAlign: 'center',
-  },
-  description: {
-    fontSize: 16,
-    color: '#333333', // Darker grey for description
-    lineHeight: 24,
-    marginBottom: 20,
-    textAlign: 'justify',
-  },
-  subtitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#000000', // Black subtitle
-    marginBottom: 10,
-  },
-  input: {
-    backgroundColor: '#f8f8f8', // Light grey for input field
-    color: '#000000', // Black input text
-    padding: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#ddd', // Border for input
-    marginBottom: 20,
-    fontSize: 16,
-  },
-  button: {
-    backgroundColor: '#000000', // Black button
-    paddingVertical: 12,
-    borderRadius: 8,
+  container: { flex: 1, backgroundColor: '#fff' },
+  content: { padding: 20, alignItems: 'center' },
+  title: { fontSize: 24, fontWeight: 'bold', marginBottom: 20 },
+  calendar: { marginBottom: 20 },
+  subtitle: { fontSize: 18, marginBottom: 10 },
+  slotButton: {
+    backgroundColor: '#000',
+    padding: 15,
+    borderRadius: 10,
+    marginVertical: 5,
+    width: '80%',
     alignItems: 'center',
   },
-  buttonText: {
-    color: '#ffffff', // White text on button
-    fontSize: 16,
-    fontWeight: '600',
-  },
+  slotText: { color: '#fff', fontSize: 16 },
+  noSlotsText: { fontSize: 16, color: '#888', marginTop: 10 },
 });

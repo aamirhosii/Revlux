@@ -24,6 +24,13 @@ import ContactScreen from './ContactScreen';
 import LogoutScreen from './LogoutScreen';
 import ProfileScreen from './ProfileScreen';
 
+// Example Admin Panel screen
+const AdminPanelScreen = () => (
+  <View style={styles.placeholderScreen}>
+    <Text>Admin Panel (Only Admins Should See This)</Text>
+  </View>
+);
+
 // Placeholder components for new drawer screens
 const MyBookingsScreen = () => <View style={styles.placeholderScreen}><Text>My Bookings Screen</Text></View>;
 const ReferFriendScreen = () => <View style={styles.placeholderScreen}><Text>Refer a Friend Screen</Text></View>;
@@ -31,7 +38,7 @@ const GiftCardScreen = () => <View style={styles.placeholderScreen}><Text>Gift C
 const RewardsScreen = () => <View style={styles.placeholderScreen}><Text>Rewards Screen</Text></View>;
 const SupportScreen = () => <View style={styles.placeholderScreen}><Text>Support Screen</Text></View>;
 const LogoutScreenComponent = () => <View style={styles.placeholderScreen}><Text>Logging out...</Text></View>; // We'll handle logout logic
-// AsyncStorage for token management
+
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export const AuthContext = createContext();
@@ -84,7 +91,7 @@ function ServicesStack() {
 
 // Drawer Navigator
 function DrawerNavigator({ navigation }) {
-  const { signOut } = React.useContext(AuthContext);
+  const { signOut, user } = React.useContext(AuthContext);
 
   return (
     <Drawer.Navigator
@@ -196,6 +203,23 @@ function DrawerNavigator({ navigation }) {
           ),
         }}
       />
+
+      {/**
+       * ONLY SHOW THIS IF THE USER IS ADMIN
+       */}
+      {user?.isAdmin && (
+        <Drawer.Screen
+          name="AdminPanel"
+          component={AdminPanelScreen}
+          options={{
+            title: 'Admin Panel',
+            drawerIcon: ({ color, size }) => (
+              <Ionicons name="settings-outline" size={size} color={color} />
+            ),
+          }}
+        />
+      )}
+
       <Drawer.Screen
         name="Logout"
         component={LogoutScreen}
@@ -217,26 +241,43 @@ function DrawerNavigator({ navigation }) {
 export default function AppNavigator() {
   const [isLoading, setIsLoading] = useState(true);
   const [userToken, setUserToken] = useState(null);
+  // NEW: store the user object (including isAdmin) in state
+  const [user, setUser] = useState(null);
 
-  // Authentication functions
+  // We modify the signIn function to accept the user object
   const authContext = {
-    signIn: async (token) => {
+    signIn: async (token, userObject) => {
+      // Store the token and user in AsyncStorage
       await AsyncStorage.setItem('token', token);
+      await AsyncStorage.setItem('user', JSON.stringify(userObject));
+
       setUserToken(token);
+      setUser(userObject);
     },
     signOut: async () => {
       await AsyncStorage.removeItem('token');
+      await AsyncStorage.removeItem('user');
+
       setUserToken(null);
+      setUser(null);
     },
+    user,      // Expose user object in context
+    userToken, // Expose token in context (if needed)
   };
 
   useEffect(() => {
     const checkToken = async () => {
       try {
+        // Attempt to load token and user from AsyncStorage
         const token = await AsyncStorage.getItem('token');
-        setUserToken(token);
+        const userStr = await AsyncStorage.getItem('user');
+
+        if (token && userStr) {
+          setUserToken(token);
+          setUser(JSON.parse(userStr)); // restore user object
+        }
       } catch (e) {
-        console.error('Failed to load token', e);
+        console.error('Failed to load token or user', e);
       } finally {
         setIsLoading(false);
       }

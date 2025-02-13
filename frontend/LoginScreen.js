@@ -50,7 +50,7 @@ export default function LoginScreen({navigation}) {
       if (response.status === 200) {
         const { token, user } = response.data;
         // Store the token and update auth state
-        await signIn(token);
+        await signIn(token, user);
 
         Alert.alert('Success', `Welcome back, ${user.name}!`);
         // No need to navigate manually; AppNavigator will handle it
