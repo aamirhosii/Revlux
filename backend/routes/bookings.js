@@ -1,9 +1,9 @@
-// routes/bookings.js
+// backend/routes/bookings.js
 const express = require('express');
 const router = express.Router();
 const Booking = require('../models/Booking');
 const Availability = require('../models/Availability');
-const { authenticateToken } = require('./auth'); // Reuse your JWT middleware
+const { authenticateToken } = require('./auth'); // <— from our combined export
 
 // POST /bookings – Create a new booking
 router.post('/', authenticateToken, async (req, res) => {
@@ -13,7 +13,7 @@ router.post('/', authenticateToken, async (req, res) => {
   }
 
   try {
-    // Normalize the date (set hours to 0)
+    // Normalize the date
     let dateOnly = new Date(appointmentDate);
     dateOnly.setHours(0, 0, 0, 0);
 
@@ -33,7 +33,7 @@ router.post('/', authenticateToken, async (req, res) => {
     slot.isAvailable = false;
     await availability.save();
 
-    // Create the booking record
+    // Create the booking
     const booking = new Booking({
       user: req.user.userId,
       service,

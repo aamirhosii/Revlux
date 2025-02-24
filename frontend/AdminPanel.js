@@ -14,10 +14,15 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function AdminPanel() {
+  // Availability states
   const [date, setDate] = useState('');
   const [timeSlots, setTimeSlots] = useState([]);
   const [newSlot, setNewSlot] = useState('');
   const [allAvailability, setAllAvailability] = useState([]);
+
+  // (Optional) If you want to add booking management here, you can add state for bookings
+  // and functions to fetch/update them.
+  // For now, this panel handles creating and viewing availability.
 
   useEffect(() => {
     fetchAllAvailability();
@@ -29,6 +34,7 @@ export default function AdminPanel() {
       setAllAvailability(response.data);
     } catch (error) {
       console.error('Error fetching availability', error);
+      Alert.alert('Error', 'Failed to fetch availability');
     }
   };
 
@@ -45,22 +51,15 @@ export default function AdminPanel() {
     }
     try {
       const token = await AsyncStorage.getItem('token');
-      const response = await axios.post(
+      await axios.post(
         'http://localhost:5001/availability',
-        {
-          date,
-          timeSlots,
-        },
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
+        { date, timeSlots },
+        { headers: { Authorization: `Bearer ${token}` } }
       );
       Alert.alert('Success', 'Availability added!');
-      // reset form
       setDate('');
       setTimeSlots([]);
       setNewSlot('');
-      // refresh availability list
       fetchAllAvailability();
     } catch (error) {
       console.error('Error creating availability', error);
@@ -80,7 +79,6 @@ export default function AdminPanel() {
             onChangeText={setDate}
             placeholder="e.g. 2025-03-01"
           />
-
           <Text style={styles.label}>Add a Time Slot</Text>
           <View style={{ flexDirection: 'row', marginBottom: 10 }}>
             <TextInput
@@ -93,14 +91,10 @@ export default function AdminPanel() {
               <Text style={styles.buttonText}>Add</Text>
             </TouchableOpacity>
           </View>
-
           <Text style={styles.label}>Time Slots to be Added:</Text>
           {timeSlots.map((slot, idx) => (
-            <Text key={idx} style={{ marginLeft: 10 }}>
-              {slot.slot}
-            </Text>
+            <Text key={idx} style={{ marginLeft: 10 }}>{slot.slot}</Text>
           ))}
-
           <TouchableOpacity style={styles.createButton} onPress={handleCreateAvailability}>
             <Text style={styles.buttonText}>Create Availability</Text>
           </TouchableOpacity>
@@ -113,9 +107,7 @@ export default function AdminPanel() {
             <View key={avail._id} style={styles.availabilityItem}>
               <Text style={styles.availabilityDate}>{dateStr}</Text>
               {avail.timeSlots.map((ts, index) => (
-                <Text key={index}>
-                  {ts.slot} — {ts.isAvailable ? 'Available' : 'Booked'}
-                </Text>
+                <Text key={index}>{ts.slot} — {ts.isAvailable ? 'Available' : 'Booked'}</Text>
               ))}
             </View>
           );
@@ -130,32 +122,10 @@ const styles = StyleSheet.create({
   header: { fontSize: 24, fontWeight: 'bold', marginBottom: 10 },
   form: { marginBottom: 30 },
   label: { fontWeight: '600', marginBottom: 5 },
-  input: {
-    borderWidth: 1,
-    borderColor: '#CCC',
-    borderRadius: 8,
-    padding: 10,
-    marginBottom: 10,
-    color: '#000',
-  },
-  addSlotButton: {
-    backgroundColor: 'black',
-    borderRadius: 8,
-    justifyContent: 'center',
-    paddingHorizontal: 15,
-  },
-  createButton: {
-    backgroundColor: 'black',
-    borderRadius: 8,
-    padding: 15,
-    alignItems: 'center',
-  },
+  input: { borderWidth: 1, borderColor: '#CCC', borderRadius: 8, padding: 10, marginBottom: 10, color: '#000' },
+  addSlotButton: { backgroundColor: 'black', borderRadius: 8, justifyContent: 'center', paddingHorizontal: 15 },
+  createButton: { backgroundColor: 'black', borderRadius: 8, padding: 15, alignItems: 'center' },
   buttonText: { color: '#fff', fontWeight: '600' },
-  availabilityItem: {
-    backgroundColor: '#F0F0F0',
-    padding: 10,
-    marginBottom: 10,
-    borderRadius: 8,
-  },
+  availabilityItem: { backgroundColor: '#F0F0F0', padding: 10, marginBottom: 10, borderRadius: 8 },
   availabilityDate: { fontWeight: 'bold', marginBottom: 5 },
 });

@@ -2,15 +2,16 @@
 import React, { useState, useEffect, createContext } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
-
-// Drawer and Tab Navigators
 import { createDrawerNavigator } from '@react-navigation/drawer';
-
-// React Native Components
-import { TouchableOpacity, View, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import {
+  TouchableOpacity,
+  View,
+  Text,
+  StyleSheet,
+  ActivityIndicator
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-// Screens
 import LoginScreen from './LoginScreen';
 import SignupScreen from './SignupScreen';
 import HomeScreen from './HomeScreen';
@@ -24,20 +25,35 @@ import ContactScreen from './ContactScreen';
 import LogoutScreen from './LogoutScreen';
 import ProfileScreen from './ProfileScreen';
 
-// Example Admin Panel screen
-const AdminPanelScreen = () => (
+// Admin placeholder
+import AdminPanel from './AdminPanel';
+
+// Other drawer placeholders
+const MyBookingsScreen = () => (
   <View style={styles.placeholderScreen}>
-    <Text>Admin Panel (Only Admins Should See This)</Text>
+    <Text>My Bookings Screen</Text>
   </View>
 );
-
-// Placeholder components for new drawer screens
-const MyBookingsScreen = () => <View style={styles.placeholderScreen}><Text>My Bookings Screen</Text></View>;
-const ReferFriendScreen = () => <View style={styles.placeholderScreen}><Text>Refer a Friend Screen</Text></View>;
-const GiftCardScreen = () => <View style={styles.placeholderScreen}><Text>Gift Card Screen</Text></View>;
-const RewardsScreen = () => <View style={styles.placeholderScreen}><Text>Rewards Screen</Text></View>;
-const SupportScreen = () => <View style={styles.placeholderScreen}><Text>Support Screen</Text></View>;
-const LogoutScreenComponent = () => <View style={styles.placeholderScreen}><Text>Logging out...</Text></View>; // We'll handle logout logic
+const ReferFriendScreen = () => (
+  <View style={styles.placeholderScreen}>
+    <Text>Refer a Friend Screen</Text>
+  </View>
+);
+const GiftCardScreen = () => (
+  <View style={styles.placeholderScreen}>
+    <Text>Gift Card Screen</Text>
+  </View>
+);
+const RewardsScreen = () => (
+  <View style={styles.placeholderScreen}>
+    <Text>Rewards Screen</Text>
+  </View>
+);
+const SupportScreen = () => (
+  <View style={styles.placeholderScreen}>
+    <Text>Support Screen</Text>
+  </View>
+);
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -51,20 +67,11 @@ function MainStack() {
     <Stack.Navigator
       initialRouteName="Home"
       screenOptions={({ navigation }) => ({
-        headerStyle: {
-          backgroundColor: '#FFFFFF',
-          elevation: 0,
-          shadowOpacity: 0,
-        },
+        headerStyle: { backgroundColor: '#FFFFFF', elevation: 0, shadowOpacity: 0 },
         headerTintColor: '#000000',
-        headerTitleStyle: {
-          fontWeight: 'bold',
-        },
+        headerTitleStyle: { fontWeight: 'bold' },
         headerLeft: () => (
-          <TouchableOpacity
-            onPress={() => navigation.openDrawer()}
-            style={styles.menuButton}
-          >
+          <TouchableOpacity onPress={() => navigation.openDrawer()} style={styles.menuButton}>
             <Ionicons name="menu-outline" size={32} color="#000000" />
           </TouchableOpacity>
         ),
@@ -79,17 +86,23 @@ function MainStack() {
   );
 }
 
-// Services Stack
 function ServicesStack() {
   return (
     <Stack.Navigator>
-      <Stack.Screen name="Services" component={ServicesScreen} options={{ headerShown: false }} />
-      <Stack.Screen name="AddOnsScreen" component={AddOnsScreen} options={{ headerShown: false }} />
+      <Stack.Screen
+        name="Services"
+        component={ServicesScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="AddOnsScreen"
+        component={AddOnsScreen}
+        options={{ headerShown: false }}
+      />
     </Stack.Navigator>
   );
 }
 
-// Drawer Navigator
 function DrawerNavigator({ navigation }) {
   const { signOut, user } = React.useContext(AuthContext);
 
@@ -98,14 +111,8 @@ function DrawerNavigator({ navigation }) {
       screenOptions={{
         drawerActiveTintColor: '#000000',
         drawerInactiveTintColor: '#666666',
-        drawerStyle: {
-          backgroundColor: '#FFFFFF',
-          width: 280,
-        },
-        drawerLabelStyle: {
-          fontSize: 16,
-          fontWeight: '600',
-        },
+        drawerStyle: { backgroundColor: '#FFFFFF', width: 280 },
+        drawerLabelStyle: { fontSize: 16, fontWeight: '600' },
       }}
     >
       <Drawer.Screen
@@ -120,15 +127,12 @@ function DrawerNavigator({ navigation }) {
         }}
         listeners={{
           drawerItemPress: () => {
-            // Navigate directly to the Home screen inside MainStack
-            navigation.navigate('Main', {
-              screen: 'Home',
-            });
+            navigation.navigate('Main', { screen: 'Home' });
           },
         }}
       />
-      <Drawer.Screen 
-        name="Profile" 
+      <Drawer.Screen
+        name="Profile"
         component={ProfileScreen}
         options={{
           drawerIcon: ({ color, size }) => (
@@ -136,19 +140,19 @@ function DrawerNavigator({ navigation }) {
           ),
         }}
       />
-      <Drawer.Screen 
-        name="Services" 
+      <Drawer.Screen
+        name="Services"
         component={ServicesStack}
         options={{
           title: 'Our Services',
           drawerIcon: ({ color, size }) => (
             <Ionicons name="car-outline" size={size} color={color} />
           ),
-          headerShown: true, 
+          headerShown: true,
         }}
       />
-      <Drawer.Screen 
-        name="My Bookings" 
+      <Drawer.Screen
+        name="My Bookings"
         component={MyBookingsScreen}
         options={{
           drawerIcon: ({ color, size }) => (
@@ -166,8 +170,8 @@ function DrawerNavigator({ navigation }) {
           ),
         }}
       />
-      <Drawer.Screen 
-        name="Refer a Friend" 
+      <Drawer.Screen
+        name="Refer a Friend"
         component={ReferFriendScreen}
         options={{
           drawerIcon: ({ color, size }) => (
@@ -175,8 +179,8 @@ function DrawerNavigator({ navigation }) {
           ),
         }}
       />
-      <Drawer.Screen 
-        name="Gift Card" 
+      <Drawer.Screen
+        name="Gift Card"
         component={GiftCardScreen}
         options={{
           drawerIcon: ({ color, size }) => (
@@ -184,8 +188,8 @@ function DrawerNavigator({ navigation }) {
           ),
         }}
       />
-      <Drawer.Screen 
-        name="Rewards" 
+      <Drawer.Screen
+        name="Rewards"
         component={RewardsScreen}
         options={{
           drawerIcon: ({ color, size }) => (
@@ -203,14 +207,10 @@ function DrawerNavigator({ navigation }) {
           ),
         }}
       />
-
-      {/**
-       * ONLY SHOW THIS IF THE USER IS ADMIN
-       */}
       {user?.isAdmin && (
         <Drawer.Screen
           name="AdminPanel"
-          component={AdminPanelScreen}
+          component={AdminPanel}
           options={{
             title: 'Admin Panel',
             drawerIcon: ({ color, size }) => (
@@ -219,7 +219,6 @@ function DrawerNavigator({ navigation }) {
           }}
         />
       )}
-
       <Drawer.Screen
         name="Logout"
         component={LogoutScreen}
@@ -230,7 +229,7 @@ function DrawerNavigator({ navigation }) {
         }}
         listeners={{
           drawerItemPress: () => {
-            signOut(); // Call the signOut function from AuthContext
+            signOut();
           },
         }}
       />
@@ -241,40 +240,33 @@ function DrawerNavigator({ navigation }) {
 export default function AppNavigator() {
   const [isLoading, setIsLoading] = useState(true);
   const [userToken, setUserToken] = useState(null);
-  // NEW: store the user object (including isAdmin) in state
   const [user, setUser] = useState(null);
 
-  // We modify the signIn function to accept the user object
   const authContext = {
     signIn: async (token, userObject) => {
-      // Store the token and user in AsyncStorage
       await AsyncStorage.setItem('token', token);
       await AsyncStorage.setItem('user', JSON.stringify(userObject));
-
       setUserToken(token);
       setUser(userObject);
     },
     signOut: async () => {
       await AsyncStorage.removeItem('token');
       await AsyncStorage.removeItem('user');
-
       setUserToken(null);
       setUser(null);
     },
-    user,      // Expose user object in context
-    userToken, // Expose token in context (if needed)
+    user,
+    userToken,
   };
 
   useEffect(() => {
     const checkToken = async () => {
       try {
-        // Attempt to load token and user from AsyncStorage
         const token = await AsyncStorage.getItem('token');
         const userStr = await AsyncStorage.getItem('user');
-
         if (token && userStr) {
           setUserToken(token);
-          setUser(JSON.parse(userStr)); // restore user object
+          setUser(JSON.parse(userStr));
         }
       } catch (e) {
         console.error('Failed to load token or user', e);
@@ -282,12 +274,10 @@ export default function AppNavigator() {
         setIsLoading(false);
       }
     };
-
     checkToken();
   }, []);
 
   if (isLoading) {
-    // Show a loading spinner while checking token
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#000000" />
@@ -299,12 +289,10 @@ export default function AppNavigator() {
     <AuthContext.Provider value={authContext}>
       <NavigationContainer>
         {userToken ? (
-          // User is logged in
           <Stack.Navigator screenOptions={{ headerShown: false }}>
             <Stack.Screen name="Main" component={DrawerNavigator} />
           </Stack.Navigator>
         ) : (
-          // User is not logged in
           <Stack.Navigator screenOptions={{ headerShown: false }}>
             <Stack.Screen name="Login" component={LoginScreen} />
             <Stack.Screen name="Signup" component={SignupScreen} />

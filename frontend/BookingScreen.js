@@ -19,12 +19,10 @@ export default function BookingScreen({ navigation }) {
   const [availableSlots, setAvailableSlots] = useState([]);
   const [loadingSlots, setLoadingSlots] = useState(false);
 
-  // Fetch availability from the backend and filter for the selected date
   const fetchAvailableSlots = async (date) => {
     setLoadingSlots(true);
     try {
       const response = await axios.get('http://localhost:5001/availability');
-      // response.data should be an array of availability objects
       const availability = response.data.find((avail) => {
         const availDate = new Date(avail.date);
         availDate.setHours(0, 0, 0, 0);
@@ -33,7 +31,6 @@ export default function BookingScreen({ navigation }) {
         return availDate.getTime() === selected.getTime();
       });
       if (availability) {
-        // Only show time slots that are still available
         setAvailableSlots(availability.timeSlots.filter((ts) => ts.isAvailable));
       } else {
         setAvailableSlots([]);
@@ -56,30 +53,23 @@ export default function BookingScreen({ navigation }) {
       return;
     }
     try {
-      // Get the token from AsyncStorage
       const token = await AsyncStorage.getItem('token');
       const response = await axios.post(
         'http://localhost:5001/bookings',
         {
-          service: 'detailing', // Or let the user select the service
+          service: 'detailing',
           appointmentDate: selectedDate,
-          timeSlot: slot.slot, // assuming each slot object has a "slot" property
+          timeSlot: slot.slot,
         },
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
+        { headers: { Authorization: `Bearer ${token}` } }
       );
       if (response.status === 201) {
         Alert.alert('Success', 'Booking confirmed!');
-        // Optionally refresh the available slots
         fetchAvailableSlots(selectedDate);
       }
     } catch (error) {
       console.error('Booking error:', error.response ? error.response.data : error);
-      Alert.alert(
-        'Booking Error',
-        error.response?.data?.message || 'Error booking slot.'
-      );
+      Alert.alert('Booking Error', error.response?.data?.message || 'Error booking slot.');
     }
   };
 
@@ -92,25 +82,17 @@ export default function BookingScreen({ navigation }) {
           markedDates={selectedDate ? { [selectedDate]: { selected: true } } : {}}
           style={styles.calendar}
         />
-        <Text style={styles.subtitle}>
-          Available Time Slots on {selectedDate || 'Select a date'}
-        </Text>
+        <Text style={styles.subtitle}>Available Time Slots on {selectedDate || 'Select a date'}</Text>
         {loadingSlots ? (
           <ActivityIndicator size="large" color="#000" />
         ) : availableSlots.length > 0 ? (
           availableSlots.map((slot, index) => (
-            <TouchableOpacity
-              key={index}
-              style={styles.slotButton}
-              onPress={() => bookSlot(slot)}
-            >
+            <TouchableOpacity key={index} style={styles.slotButton} onPress={() => bookSlot(slot)}>
               <Text style={styles.slotText}>{slot.slot}</Text>
             </TouchableOpacity>
           ))
         ) : (
-          <Text style={styles.noSlotsText}>
-            No available slots for the selected date.
-          </Text>
+          <Text style={styles.noSlotsText}>No available slots for the selected date.</Text>
         )}
       </ScrollView>
     </SafeAreaView>

@@ -1,3 +1,4 @@
+// SignupScreen.js
 import React, { useState, useContext } from 'react';
 import axios from 'axios';
 import { AuthContext } from './AppNavigator';
@@ -19,29 +20,43 @@ export default function SignupScreen() {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+
+  // Simple OTP flow for demonstration
   const [otp, setOtp] = useState('');
   const [usePhoneNumber, setUsePhoneNumber] = useState(false);
   const [step, setStep] = useState(1);
   const [generatedOtp, setGeneratedOtp] = useState('');
+
   const navigation = useNavigation();
   const { signIn } = useContext(AuthContext);
 
+  // For demonstration only: generate a 6-digit OTP
   const generateOtp = () => {
     const newOtp = Math.floor(100000 + Math.random() * 900000).toString();
     setGeneratedOtp(newOtp);
     console.log('Generated OTP:', newOtp);
     return newOtp;
   };
+
+  // Check uniqueness (only email or phone)
   const checkUniqueness = async () => {
     try {
-      const response = await axios.post('http://localhost:5001/auth/check-uniqueness', {
-        name,
-        email: usePhoneNumber ? null : email,
-        phoneNumber: usePhoneNumber ? phoneNumber : null,
+      const normalizedEmail = email ? email.trim().toLowerCase() : null;
+      const normalizedPhone = phoneNumber ? phoneNumber.trim() : null;
+
+      console.log('Checking uniqueness with =>', {
+        email: usePhoneNumber ? null : email.trim().toLowerCase(),
+        phoneNumber: usePhoneNumber ? phoneNumber.trim() : null,
       });
-  
+
+      // If you're on Android emulator, you may need http://10.0.2.2:5001
+      const response = await axios.post('http://localhost:5001/auth/check-uniqueness', {
+        email: usePhoneNumber ? null : normalizedEmail,
+        phoneNumber: usePhoneNumber ? normalizedPhone : null,
+      });
+
       if (response.status === 200) {
-        return true; // Fields are unique
+        return true;
       }
     } catch (err) {
       console.error('Uniqueness Check Error:', err.response?.data?.message || err.message);
@@ -49,7 +64,7 @@ export default function SignupScreen() {
       return false;
     }
   };
-  
+
   const handleInitialSubmit = async () => {
     if (!name || !password || !confirmPassword) {
       Alert.alert('Error', 'Please fill in all required fields');
@@ -63,22 +78,21 @@ export default function SignupScreen() {
       Alert.alert('Error', 'Password must be at least 8 characters long');
       return;
     }
-  
-    // Ensure at least one of email or phone number is provided
     if (!email && !phoneNumber) {
       Alert.alert('Error', 'Please provide either an email or phone number');
       return;
     }
-  
-    // Proceed with uniqueness check or OTP generation
+
+    // Only check email/phone for uniqueness
     const isUnique = await checkUniqueness();
     if (!isUnique) return;
-  
+
+    // "Send" OTP
     const newOtp = generateOtp();
     console.log(`OTP sent to ${usePhoneNumber ? phoneNumber : email}: ${newOtp}`);
     setStep(2);
   };
-  
+
   const handleOtpSubmit = async () => {
     if (otp !== generatedOtp) {
       Alert.alert('Error', 'Invalid OTP. Please try again.');
@@ -86,16 +100,21 @@ export default function SignupScreen() {
     }
 
     try {
+      const normalizedName = name.trim();
+      const normalizedEmail = email ? email.trim().toLowerCase() : null;
+      const normalizedPhone = phoneNumber ? phoneNumber.trim() : null;
+
       const data = {
-        name,
-        email: usePhoneNumber ? null : email,
-        phoneNumber: usePhoneNumber ? phoneNumber : null,
+        name: normalizedName,
+        email: usePhoneNumber ? null : normalizedEmail,
+        phoneNumber: usePhoneNumber ? normalizedPhone : null,
         password,
       };
 
-      const response = await axios.post('http://localhost:5001/auth/signup', data);
-
-      if (response.status === 201) {
+      // Signup
+      const signupResponse = await axios.post('http://localhost:5001/auth/signup', data);
+      if (signupResponse.status === 201) {
+        // Immediately log them in
         const loginResponse = await axios.post('http://localhost:5001/auth/login', {
           identifier: usePhoneNumber ? phoneNumber : email,
           password,
@@ -103,9 +122,11 @@ export default function SignupScreen() {
 
         if (loginResponse.status === 200) {
           const { token, user } = loginResponse.data;
-          await signIn(token);
+          // MUST pass both token and user
+          await signIn(token, user);
 
           Alert.alert('Success', `Welcome, ${user.name}!`);
+          navigation.navigate('Main'); // or wherever you want to redirect
         }
       }
     } catch (error) {
@@ -127,10 +148,7 @@ export default function SignupScreen() {
           />
           <View style={styles.switchContainer}>
             <Text style={styles.switchLabel}>Use Phone Number</Text>
-            <Switch
-              value={usePhoneNumber}
-              onValueChange={setUsePhoneNumber}
-            />
+            <Switch value={usePhoneNumber} onValueChange={setUsePhoneNumber} />
           </View>
           {usePhoneNumber ? (
             <TextInput
