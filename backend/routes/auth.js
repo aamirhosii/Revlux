@@ -31,7 +31,9 @@ function authenticateToken(req, res, next) {
 
 // SIGNUP
 router.post('/signup', async (req, res) => {
-  const { name, email, phoneNumber, password } = req.body;
+  const { name, email, phoneNumber, password, referredByCode } = req.body;
+  // 'referredByCode' is optional - a friend’s code
+
   try {
     if (!email && !phoneNumber) {
       return res.status(400).json({
@@ -39,9 +41,8 @@ router.post('/signup', async (req, res) => {
       });
     }
 
-    // Check if user already exists by email or phoneNumber
-    const userExists = await User.findOne({ email }); 
-
+    // Check if user already exists by email
+    const userExists = await User.findOne({ email });
     if (userExists) {
       const conflictFields = [];
       if (userExists.email === email) conflictFields.push('email');
@@ -54,47 +55,58 @@ router.post('/signup', async (req, res) => {
     // Hash the password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Create new user
+    // Create new user doc
     const newUser = new User({
       name,
       email: email || null,
       phoneNumber: phoneNumber || null,
       password: hashedPassword,
     });
+    await newUser.save();
+
+    // Generate a referral code for the new user
+    const referralCode = `SHELBY-${Math.random().toString(36).substring(2,8).toUpperCase()}`;
+    newUser.referralCode = referralCode;
+
+    // If user was referred by someone
+    if (referredByCode) {
+      // Find the referrer
+      const referrer = await User.findOne({ referralCode: referredByCode });
+      if (referrer) {
+        newUser.referredBy = referrer._id;
+        // Optionally give referrer some credit
+        referrer.referralCredits = (referrer.referralCredits || 0) + 10;
+        await referrer.save();
+      }
+    }
 
     await newUser.save();
     res.status(201).json({ message: 'User registered successfully' });
+
   } catch (err) {
     console.error('Signup Error:', err);
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
 
+// Check email uniqueness
 router.post('/check-uniqueness', async (req, res) => {
-  const { email, phoneNumber } = req.body;
-
+  const { email } = req.body;
   try {
-    // If the user is using phoneNumber (so email === null), SKIP the check
+    // If user is phone-only (email === null), skip
     if (email === null) {
-      // That means we do NOT enforce phone uniqueness
       return res.status(200).json({ isUnique: true });
     }
-
-    // Otherwise, check if that email is used
     const userExists = await User.findOne({ email });
     if (userExists) {
       return res.status(409).json({
-        message: 'Email is already in use', // or your preferred wording
+        message: 'Email is already in use',
       });
     }
-
-    // If no user has that email, we're good
     return res.status(200).json({ isUnique: true });
   } catch (err) {
     console.error('Uniqueness Check Error:', err);
-    return res
-      .status(500)
-      .json({ message: 'Server error', error: err.message });
+    return res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
 
@@ -164,7 +176,6 @@ router.put('/profile', authenticateToken, async (req, res) => {
     const { name, email, phoneNumber, carInfo, homeAddress } = req.body;
     const updatedData = { name, email, phoneNumber, carInfo, homeAddress };
 
-    // Remove undefined fields
     Object.keys(updatedData).forEach(
       (key) => updatedData[key] === undefined && delete updatedData[key]
     );
@@ -176,6 +187,20 @@ router.put('/profile', authenticateToken, async (req, res) => {
     res.json(user);
   } catch (err) {
     console.error('Update Profile Error:', err);
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// ADMIN-ONLY: Get all users
+router.get('/allUsers', authenticateToken, async (req, res) => {
+  try {
+    if (!req.user?.isAdmin) {
+      return res.status(403).json({ message: 'Admin only' });
+    }
+    const users = await User.find({});
+    res.json(users);
+  } catch (err) {
+    console.error('allUsers Error:', err);
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 });

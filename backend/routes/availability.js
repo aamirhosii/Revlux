@@ -13,62 +13,41 @@ router.get('/', async (req, res) => {
   }
 });
 
-// POST /availability – (Admin only) Create a new availability entry
-// In a production app, add middleware to restrict this endpoint to admins.
+// POST /availability – (Admin) Create or update availability for a date
 router.post('/', async (req, res) => {
-  const { date, timeSlots } = req.body;
-  if (!date || !timeSlots) {
-    return res.status(400).json({ message: 'Missing required fields.' });
+  const { date, timeSlots } = req.body; 
+  // timeSlots is an array of objects: 
+  // e.g. [{ startTime, endTime, serviceType, isAvailable }, ...]
+
+  if (!date || !timeSlots || !Array.isArray(timeSlots)) {
+    return res.status(400).json({ message: 'Missing or invalid fields.' });
   }
+
   try {
+    // Normalize the date
     let dateOnly = new Date(date);
     dateOnly.setHours(0, 0, 0, 0);
-    const availability = new Availability({
-      date: dateOnly,
-      timeSlots,
-    });
+
+    // Find existing availability for this date
+    let availability = await Availability.findOne({ date: dateOnly });
+
+    if (!availability) {
+      // Create a new doc
+      availability = new Availability({
+        date: dateOnly,
+        timeSlots
+      });
+    } else {
+      // Overwrite or merge the time slots
+      // For simplicity, let's just REPLACE them:
+      availability.timeSlots = timeSlots;
+    }
+
     await availability.save();
-    res.status(201).json({ message: 'Availability created successfully', availability });
+    res.status(201).json({ message: 'Availability updated successfully', availability });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 
 module.exports = router;
-
-
-
-/*
-// routes/availability.js
-const express = require('express');
-const router = express.Router();
-const Availability = require('../models/Availability');
-
-// GET /availability – Get all availability entries
-router.get('/', async (req, res) => {
-  try {
-    const availabilities = await Availability.find({});
-    res.json(availabilities);
-  } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
-});
-
-// POST /availability – Create a new availability entry
-// In production, restrict this route (e.g., with admin middleware)
-router.post('/', async (req, res) => {
-  const { date, timeSlots } = req.body;
-  if (!date || !timeSlots) return res.status(400).json({ message: 'Missing required fields.' });
-  try {
-    let dateOnly = new Date(date);
-    dateOnly.setHours(0, 0, 0, 0);
-    const availability = new Availability({ date: dateOnly, timeSlots });
-    await availability.save();
-    res.status(201).json({ message: 'Availability created successfully', availability });
-  } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
-});
-
-module.exports = router;
-*/

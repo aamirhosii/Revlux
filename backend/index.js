@@ -1,3 +1,4 @@
+// index.js
 require('dotenv').config();
 const mongoose = require('mongoose');
 const express = require('express');
@@ -6,6 +7,9 @@ const cors = require('cors');
 const authRoutes = require('./routes/auth');         
 const bookingRoutes = require('./routes/bookings');  
 const availabilityRoutes = require('./routes/availability');
+
+// If you want Gift Cards:
+const giftCardRoutes = require('./routes/giftCards'); // Make sure you created giftCards.js
 
 const app = express();
 
@@ -19,9 +23,11 @@ app.use('/auth', authRoutes.router);
 app.use('/bookings', bookingRoutes);
 app.use('/availability', availabilityRoutes);
 
-// Connect to MongoDB
-const uri = process.env.MONGODB_URI; // e.g., "mongodb+srv://user:pass@cluster0..."
+// If using Gift Cards:
+app.use('/giftcards', giftCardRoutes);
 
+// Connect to MongoDB
+const uri = process.env.MONGODB_URI; // e.g., "mongodb://localhost:27017/shelby"
 mongoose
   .connect(uri)
   .then(() => console.log('MongoDB connected'))

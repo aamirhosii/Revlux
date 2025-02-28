@@ -3,10 +3,11 @@ const mongoose = require('mongoose');
 
 const BookingSchema = new mongoose.Schema({
   user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  service: { type: String, required: true }, // e.g. "detailing", "ceramic coating"
+  service: { type: String, required: true }, // "CORE", "PRO", "ULTRA", etc.
   appointmentDate: { type: Date, required: true },
-  timeSlot: { type: String, required: true }, // e.g., "10:00 AM - 11:00 AM"
-  status: { type: String, default: 'pending' }, // pending, confirmed, cancelled, etc.
+  startTime: { type: String, required: true },
+  endTime: { type: String, required: true },
+  status: { type: String, default: 'pending' }, // We'll set to 'confirmed' right away
   createdAt: { type: Date, default: Date.now },
 });
 

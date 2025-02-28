@@ -1,4 +1,3 @@
-// SignupScreen.js
 import React, { useState, useContext } from 'react';
 import axios from 'axios';
 import { AuthContext } from './AppNavigator';
@@ -9,7 +8,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   ScrollView,
-  Switch,
   Alert,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
@@ -21,16 +19,14 @@ export default function SignupScreen() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
-  // Simple OTP flow for demonstration
-  const [otp, setOtp] = useState('');
-  const [usePhoneNumber, setUsePhoneNumber] = useState(false);
   const [step, setStep] = useState(1);
+  const [otp, setOtp] = useState('');
   const [generatedOtp, setGeneratedOtp] = useState('');
 
   const navigation = useNavigation();
   const { signIn } = useContext(AuthContext);
 
-  // For demonstration only: generate a 6-digit OTP
+  // Generate a 6-digit OTP for demonstration
   const generateOtp = () => {
     const newOtp = Math.floor(100000 + Math.random() * 900000).toString();
     setGeneratedOtp(newOtp);
@@ -38,21 +34,16 @@ export default function SignupScreen() {
     return newOtp;
   };
 
-  // Check uniqueness (only email or phone)
+  // Check uniqueness (only email in this example)
   const checkUniqueness = async () => {
     try {
-      const normalizedEmail = email ? email.trim().toLowerCase() : null;
-      const normalizedPhone = phoneNumber ? phoneNumber.trim() : null;
+      const normalizedEmail = email.trim().toLowerCase();
 
-      console.log('Checking uniqueness with =>', {
-        email: usePhoneNumber ? null : email.trim().toLowerCase(),
-        phoneNumber: usePhoneNumber ? phoneNumber.trim() : null,
-      });
+      console.log('Checking uniqueness with =>', { email: normalizedEmail });
 
-      // If you're on Android emulator, you may need http://10.0.2.2:5001
+      // POST /check-uniqueness on your backend
       const response = await axios.post('http://localhost:5001/auth/check-uniqueness', {
-        email: usePhoneNumber ? null : normalizedEmail,
-        phoneNumber: usePhoneNumber ? normalizedPhone : null,
+        email: normalizedEmail,
       });
 
       if (response.status === 200) {
@@ -66,8 +57,9 @@ export default function SignupScreen() {
   };
 
   const handleInitialSubmit = async () => {
-    if (!name || !password || !confirmPassword) {
-      Alert.alert('Error', 'Please fill in all required fields');
+    // Basic validations
+    if (!name || !email || !phoneNumber || !password || !confirmPassword) {
+      Alert.alert('Error', 'Please fill in all fields');
       return;
     }
     if (password !== confirmPassword) {
@@ -75,21 +67,17 @@ export default function SignupScreen() {
       return;
     }
     if (password.length < 8) {
-      Alert.alert('Error', 'Password must be at least 8 characters long');
-      return;
-    }
-    if (!email && !phoneNumber) {
-      Alert.alert('Error', 'Please provide either an email or phone number');
+      Alert.alert('Error', 'Password must be at least 8 characters');
       return;
     }
 
-    // Only check email/phone for uniqueness
+    // Check email uniqueness
     const isUnique = await checkUniqueness();
     if (!isUnique) return;
 
-    // "Send" OTP
+    // Simulate sending an OTP (to email)
     const newOtp = generateOtp();
-    console.log(`OTP sent to ${usePhoneNumber ? phoneNumber : email}: ${newOtp}`);
+    console.log(`OTP sent to ${email}: ${newOtp}`);
     setStep(2);
   };
 
@@ -100,33 +88,27 @@ export default function SignupScreen() {
     }
 
     try {
-      const normalizedName = name.trim();
-      const normalizedEmail = email ? email.trim().toLowerCase() : null;
-      const normalizedPhone = phoneNumber ? phoneNumber.trim() : null;
-
       const data = {
-        name: normalizedName,
-        email: usePhoneNumber ? null : normalizedEmail,
-        phoneNumber: usePhoneNumber ? normalizedPhone : null,
+        name: name.trim(),
+        email: email.trim().toLowerCase(),
+        phoneNumber: phoneNumber.trim(),
         password,
       };
 
-      // Signup
+      // 1) Sign up
       const signupResponse = await axios.post('http://localhost:5001/auth/signup', data);
       if (signupResponse.status === 201) {
-        // Immediately log them in
+        // 2) Immediately log in
         const loginResponse = await axios.post('http://localhost:5001/auth/login', {
-          identifier: usePhoneNumber ? phoneNumber : email,
+          identifier: email.trim().toLowerCase(),  // Since we use email as the identifier
           password,
         });
 
         if (loginResponse.status === 200) {
           const { token, user } = loginResponse.data;
-          // MUST pass both token and user
           await signIn(token, user);
-
           Alert.alert('Success', `Welcome, ${user.name}!`);
-          navigation.navigate('Main'); // or wherever you want to redirect
+          navigation.navigate('Main');
         }
       }
     } catch (error) {
@@ -138,6 +120,7 @@ export default function SignupScreen() {
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.title}>Sign Up</Text>
+
       {step === 1 ? (
         <View style={styles.form}>
           <TextInput
@@ -146,28 +129,21 @@ export default function SignupScreen() {
             value={name}
             onChangeText={setName}
           />
-          <View style={styles.switchContainer}>
-            <Text style={styles.switchLabel}>Use Phone Number</Text>
-            <Switch value={usePhoneNumber} onValueChange={setUsePhoneNumber} />
-          </View>
-          {usePhoneNumber ? (
-            <TextInput
-              style={styles.input}
-              placeholder="Phone Number"
-              value={phoneNumber}
-              onChangeText={setPhoneNumber}
-              keyboardType="phone-pad"
-            />
-          ) : (
-            <TextInput
-              style={styles.input}
-              placeholder="Email"
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
-          )}
+          <TextInput
+            style={styles.input}
+            placeholder="Email"
+            value={email}
+            onChangeText={(val) => setEmail(val.trim())}
+            keyboardType="email-address"
+            autoCapitalize="none"
+          />
+          <TextInput
+            style={styles.input}
+            placeholder="Phone Number"
+            value={phoneNumber}
+            onChangeText={setPhoneNumber}
+            keyboardType="phone-pad"
+          />
           <TextInput
             style={styles.input}
             placeholder="Password"
@@ -182,6 +158,7 @@ export default function SignupScreen() {
             onChangeText={setConfirmPassword}
             secureTextEntry
           />
+
           <TouchableOpacity style={styles.button} onPress={handleInitialSubmit}>
             <Text style={styles.buttonText}>Continue</Text>
           </TouchableOpacity>
@@ -190,7 +167,7 @@ export default function SignupScreen() {
         <View style={styles.form}>
           <TextInput
             style={styles.input}
-            placeholder="Enter OTP"
+            placeholder="Enter the OTP sent to your Email"
             value={otp}
             onChangeText={setOtp}
             keyboardType="number-pad"
@@ -200,6 +177,7 @@ export default function SignupScreen() {
           </TouchableOpacity>
         </View>
       )}
+
       <TouchableOpacity onPress={() => navigation.navigate('Login')}>
         <Text style={styles.linkText}>Already have an account? Log In</Text>
       </TouchableOpacity>
@@ -234,19 +212,9 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     paddingHorizontal: 10,
   },
-  switchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 10,
-  },
-  switchLabel: {
-    fontSize: 16,
-    color: '#000000',
-  },
   button: {
     backgroundColor: '#000000',
-    padding: 10,
+    padding: 12,
     borderRadius: 5,
     alignItems: 'center',
     marginTop: 10,

@@ -1,48 +1,96 @@
-// backend/routes/bookings.js
+// routes/bookings.js
 const express = require('express');
 const router = express.Router();
+const nodemailer = require('nodemailer');
 const Booking = require('../models/Booking');
 const Availability = require('../models/Availability');
-const { authenticateToken } = require('./auth'); // <— from our combined export
+const User = require('../models/User');
+const { authenticateToken } = require('./auth');
+
+// Configure nodemailer transport (example: Gmail)
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS
+  },
+});
 
 // POST /bookings – Create a new booking
 router.post('/', authenticateToken, async (req, res) => {
-  const { service, appointmentDate, timeSlot } = req.body;
-  if (!service || !appointmentDate || !timeSlot) {
+  const { service, appointmentDate, startTime, endTime } = req.body;
+  if (!service || !appointmentDate || !startTime || !endTime) {
     return res.status(400).json({ message: 'Missing required fields.' });
   }
 
   try {
-    // Normalize the date
+    // 1) Normalize the date (strip time)
     let dateOnly = new Date(appointmentDate);
     dateOnly.setHours(0, 0, 0, 0);
 
-    // Find availability for the selected date
+    // 2) Find availability for that date
     let availability = await Availability.findOne({ date: dateOnly });
     if (!availability) {
-      return res.status(400).json({ message: 'No available slots on this date.' });
+      return res.status(400).json({ message: 'No availability found on this date.' });
     }
 
-    // Find the requested time slot
-    const slot = availability.timeSlots.find((ts) => ts.slot === timeSlot);
-    if (!slot || !slot.isAvailable) {
-      return res.status(400).json({ message: 'Selected time slot is not available.' });
+    // 3) Find the requested slot
+    //    The user’s "service" is effectively the "serviceType" here.
+    let slot = availability.timeSlots.find(
+      (ts) => 
+        ts.serviceType === service &&
+        ts.startTime === startTime &&
+        ts.endTime === endTime
+    );
+
+    if (!slot) {
+      return res.status(400).json({ message: 'Slot not found for this service/date/time range.' });
+    }
+    if (!slot.isAvailable) {
+      return res.status(400).json({ message: 'Selected time slot is already booked.' });
     }
 
-    // Mark the slot as no longer available
+    // 4) Mark the slot as booked
     slot.isAvailable = false;
     await availability.save();
 
-    // Create the booking
+    // 5) Create the booking with status=confirmed
     const booking = new Booking({
       user: req.user.userId,
       service,
       appointmentDate: dateOnly,
-      timeSlot,
+      startTime,
+      endTime,
+      status: 'confirmed',
     });
     await booking.save();
 
-    res.status(201).json({ message: 'Booking created successfully', booking });
+    // 6) Send an email confirmation to the user
+    const userDoc = await User.findById(req.user.userId);
+    if (userDoc && userDoc.email) {
+      const mailOptions = {
+        from: process.env.EMAIL_USER,
+        to: userDoc.email,
+        subject: `Booking Confirmation - ${service}`,
+        text: `Hi ${userDoc.name},\n\n` +
+              `Your booking has been confirmed!\n\n` +
+              `Service: ${service}\n` +
+              `Date: ${dateOnly.toDateString()}\n` +
+              `Time: ${startTime} - ${endTime}\n\n` +
+              `Thank you for choosing Shelby Mobile Auto Detailing!`,
+      };
+
+      transporter.sendMail(mailOptions, (err, info) => {
+        if (err) {
+          console.error('Error sending email:', err);
+        } else {
+          console.log('Email sent:', info.response);
+        }
+      });
+    }
+
+    // 7) Return success
+    return res.status(201).json({ message: 'Booking created successfully', booking });
   } catch (error) {
     console.error('Booking error:', error);
     res.status(500).json({ message: 'Server error', error: error.message });

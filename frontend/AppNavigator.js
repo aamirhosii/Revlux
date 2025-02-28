@@ -11,39 +11,30 @@ import {
   ActivityIndicator
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
+// Screens
 import LoginScreen from './LoginScreen';
 import SignupScreen from './SignupScreen';
 import HomeScreen from './HomeScreen';
-import AboutScreen from './AboutScreen';
-import DetailingScreen from './DetailingScreen';
-import CoatingScreen from './CoatingScreen';
+import ProfileScreen from './ProfileScreen';
 import ServicesScreen from './ServicesScreen';
-import BookingScreen from './BookingScreen';
 import AddOnsScreen from './AddOn';
+import BookingScreen from './BookingScreen';
 import ContactScreen from './ContactScreen';
 import LogoutScreen from './LogoutScreen';
-import ProfileScreen from './ProfileScreen';
-
-// Admin placeholder
 import AdminPanel from './AdminPanel';
+import GiftCardAdmin from './GiftCardAdmin'; 
 
-// Other drawer placeholders
-const MyBookingsScreen = () => (
-  <View style={styles.placeholderScreen}>
-    <Text>My Bookings Screen</Text>
-  </View>
-);
-const ReferFriendScreen = () => (
-  <View style={styles.placeholderScreen}>
-    <Text>Refer a Friend Screen</Text>
-  </View>
-);
-const GiftCardScreen = () => (
-  <View style={styles.placeholderScreen}>
-    <Text>Gift Card Screen</Text>
-  </View>
-);
+// MY Bookings
+import MyBookingsScreen from './MyBookingsScreen';
+
+// IMPORTANT: Import your ACTUAL screens
+import ReferFriendScreen from './ReferFriendScreen';
+import GiftCardScreen from './GiftCardScreen';
+// (Remove the placeholder definitions entirely)
+
+// If you still want placeholders for others:
 const RewardsScreen = () => (
   <View style={styles.placeholderScreen}>
     <Text>Rewards Screen</Text>
@@ -54,8 +45,6 @@ const SupportScreen = () => (
     <Text>Support Screen</Text>
   </View>
 );
-
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export const AuthContext = createContext();
 
@@ -115,6 +104,7 @@ function DrawerNavigator({ navigation }) {
         drawerLabelStyle: { fontSize: 16, fontWeight: '600' },
       }}
     >
+      {/* HOME STACK */}
       <Drawer.Screen
         name="MainStack"
         component={MainStack}
@@ -131,6 +121,7 @@ function DrawerNavigator({ navigation }) {
           },
         }}
       />
+
       <Drawer.Screen
         name="Profile"
         component={ProfileScreen}
@@ -140,6 +131,8 @@ function DrawerNavigator({ navigation }) {
           ),
         }}
       />
+
+      {/* SERVICES STACK */}
       <Drawer.Screen
         name="Services"
         component={ServicesStack}
@@ -151,6 +144,7 @@ function DrawerNavigator({ navigation }) {
           headerShown: true,
         }}
       />
+
       <Drawer.Screen
         name="My Bookings"
         component={MyBookingsScreen}
@@ -160,6 +154,7 @@ function DrawerNavigator({ navigation }) {
           ),
         }}
       />
+
       <Drawer.Screen
         name="Booking"
         component={BookingScreen}
@@ -170,6 +165,8 @@ function DrawerNavigator({ navigation }) {
           ),
         }}
       />
+
+      {/* REAL ReferFriendScreen */}
       <Drawer.Screen
         name="Refer a Friend"
         component={ReferFriendScreen}
@@ -179,6 +176,8 @@ function DrawerNavigator({ navigation }) {
           ),
         }}
       />
+
+      {/* REAL GiftCardScreen */}
       <Drawer.Screen
         name="Gift Card"
         component={GiftCardScreen}
@@ -188,6 +187,21 @@ function DrawerNavigator({ navigation }) {
           ),
         }}
       />
+
+      {/* Admin-only GiftCardAdmin */}
+      {user?.isAdmin && (
+        <Drawer.Screen
+          name="GiftCardAdmin"
+          component={GiftCardAdmin}
+          options={{
+            title: 'Issue Gift Cards',
+            drawerIcon: ({ color, size }) => (
+              <Ionicons name="briefcase-outline" size={size} color={color} />
+            ),
+          }}
+        />
+      )}
+
       <Drawer.Screen
         name="Rewards"
         component={RewardsScreen}
@@ -197,6 +211,7 @@ function DrawerNavigator({ navigation }) {
           ),
         }}
       />
+
       <Drawer.Screen
         name="Contact"
         component={ContactScreen}
@@ -207,6 +222,7 @@ function DrawerNavigator({ navigation }) {
           ),
         }}
       />
+
       {user?.isAdmin && (
         <Drawer.Screen
           name="AdminPanel"
@@ -219,6 +235,7 @@ function DrawerNavigator({ navigation }) {
           }}
         />
       )}
+
       <Drawer.Screen
         name="Logout"
         component={LogoutScreen}
