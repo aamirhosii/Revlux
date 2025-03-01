@@ -63,7 +63,7 @@ export default function AddOnsScreen({ route }) {
   };
 
   const proceedToCheckout = () => {
-    navigation.navigate('Checkout', {
+    navigation.navigate('CheckoutScreen', {
       selectedPackage,
       selectedAddOns,
     });

@@ -29,7 +29,7 @@ export default function LoginScreen({ navigation }) {
       Alert.alert('Error', 'Please enter a valid email address.');
       return;
     }
-
+    
     try {
       const response = await axios.post('http://localhost:5001/auth/login', {
         identifier: email,  // Using 'email' as the identifier

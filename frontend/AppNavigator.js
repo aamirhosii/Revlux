@@ -25,6 +25,8 @@ import ContactScreen from './ContactScreen';
 import LogoutScreen from './LogoutScreen';
 import AdminPanel from './AdminPanel';
 import GiftCardAdmin from './GiftCardAdmin'; 
+import CheckoutScreen from './CheckoutScreen';
+
 
 // MY Bookings
 import MyBookingsScreen from './MyBookingsScreen';
@@ -87,6 +89,11 @@ function ServicesStack() {
         name="AddOnsScreen"
         component={AddOnsScreen}
         options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="CheckoutScreen" // Add CheckoutScreen here
+        component={CheckoutScreen}
+        options={{ title: 'Checkout' }}
       />
     </Stack.Navigator>
   );
