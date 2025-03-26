@@ -1,13 +1,14 @@
-// routes/bookings.js
+// backend/routes/bookings.js
 const express = require('express');
 const router = express.Router();
 const nodemailer = require('nodemailer');
+const fetch = require('node-fetch'); // for Expo push
 const Booking = require('../models/Booking');
 const Availability = require('../models/Availability');
 const User = require('../models/User');
 const { authenticateToken } = require('./auth');
 
-// Configure nodemailer transport (example: Gmail)
+// Nodemailer transport (example: Gmail)
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
@@ -35,7 +36,6 @@ router.post('/', authenticateToken, async (req, res) => {
     }
 
     // 3) Find the requested slot
-    //    The user’s "service" is effectively the "serviceType" here.
     let slot = availability.timeSlots.find(
       (ts) => 
         ts.serviceType === service &&
@@ -44,7 +44,9 @@ router.post('/', authenticateToken, async (req, res) => {
     );
 
     if (!slot) {
-      return res.status(400).json({ message: 'Slot not found for this service/date/time range.' });
+      return res
+        .status(400)
+        .json({ message: 'Slot not found for this service/date/time range.' });
     }
     if (!slot.isAvailable) {
       return res.status(400).json({ message: 'Selected time slot is already booked.' });
@@ -65,19 +67,20 @@ router.post('/', authenticateToken, async (req, res) => {
     });
     await booking.save();
 
-    // 6) Send an email confirmation to the user
+    // 6) Send an email confirmation (optional)
     const userDoc = await User.findById(req.user.userId);
     if (userDoc && userDoc.email) {
       const mailOptions = {
         from: process.env.EMAIL_USER,
         to: userDoc.email,
         subject: `Booking Confirmation - ${service}`,
-        text: `Hi ${userDoc.name},\n\n` +
-              `Your booking has been confirmed!\n\n` +
-              `Service: ${service}\n` +
-              `Date: ${dateOnly.toDateString()}\n` +
-              `Time: ${startTime} - ${endTime}\n\n` +
-              `Thank you for choosing Shelby Mobile Auto Detailing!`,
+        text:
+          `Hi ${userDoc.name},\n\n` +
+          `Your booking has been confirmed!\n\n` +
+          `Service: ${service}\n` +
+          `Date: ${dateOnly.toDateString()}\n` +
+          `Time: ${startTime} - ${endTime}\n\n` +
+          `Thank you for choosing Shelby Mobile Auto Detailing!`,
       };
 
       transporter.sendMail(mailOptions, (err, info) => {
@@ -89,7 +92,45 @@ router.post('/', authenticateToken, async (req, res) => {
       });
     }
 
-    // 7) Return success
+    // 7) Send push notification if user has expoPushToken
+    if (userDoc && userDoc.expoPushToken) {
+      try {
+        const message = {
+          to: userDoc.expoPushToken,
+          sound: 'default',
+          title: `Booking Confirmed - ${service}`,
+          body: `Your booking on ${dateOnly.toDateString()} at ${startTime} is confirmed.`,
+          data: {
+            bookingId: booking._id,
+            service,
+            date: dateOnly.toISOString(),
+            startTime,
+            endTime,
+          },
+        };
+
+        const expoResponse = await fetch('https://exp.host/--/api/v2/push/send', {
+          method: 'POST',
+          headers: {
+            Accept: 'application/json',
+            'Accept-Encoding': 'gzip, deflate',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(message),
+        });
+
+        const result = await expoResponse.json();
+        if (result?.data?.status === 'ok') {
+          console.log('Push notification sent successfully');
+        } else {
+          console.error('Push notification error:', result);
+        }
+      } catch (pushErr) {
+        console.error('Failed to send push notification:', pushErr);
+      }
+    }
+
+    // 8) Return success
     return res.status(201).json({ message: 'Booking created successfully', booking });
   } catch (error) {
     console.error('Booking error:', error);

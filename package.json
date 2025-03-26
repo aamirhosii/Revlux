@@ -23,6 +23,7 @@
     "expo-blur": "~14.0.1",
     "expo-font": "~13.0.1",
     "expo-linear-gradient": "~14.0.1",
+    "expo-notifications": "^0.29.14",
     "expo-router": "^3.1.0",
     "expo-status-bar": "~2.0.0",
     "firebase": "^11.3.0",

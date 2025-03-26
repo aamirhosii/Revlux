@@ -1,4 +1,4 @@
-// routes/auth.js
+// backend/routes/auth.js
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcrypt');
@@ -23,7 +23,7 @@ function authenticateToken(req, res, next) {
     if (err) {
       return res.sendStatus(403); // Forbidden
     }
-    // userPayload contains: { userId, isAdmin, iat, exp }
+    // userPayload: { userId, isAdmin, iat, exp }
     req.user = userPayload;
     next();
   });
@@ -32,8 +32,6 @@ function authenticateToken(req, res, next) {
 // SIGNUP
 router.post('/signup', async (req, res) => {
   const { name, email, phoneNumber, password, referredByCode } = req.body;
-  // 'referredByCode' is optional - a friend’s code
-
   try {
     if (!email && !phoneNumber) {
       return res.status(400).json({
@@ -55,7 +53,7 @@ router.post('/signup', async (req, res) => {
     // Hash the password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Create new user doc
+    // Create new user
     const newUser = new User({
       name,
       email: email || null,
@@ -64,13 +62,12 @@ router.post('/signup', async (req, res) => {
     });
     await newUser.save();
 
-    // Generate a referral code for the new user
+    // Generate a referral code
     const referralCode = `SHELBY-${Math.random().toString(36).substring(2,8).toUpperCase()}`;
     newUser.referralCode = referralCode;
 
     // If user was referred by someone
     if (referredByCode) {
-      // Find the referrer
       const referrer = await User.findOne({ referralCode: referredByCode });
       if (referrer) {
         newUser.referredBy = referrer._id;
@@ -112,7 +109,7 @@ router.post('/check-uniqueness', async (req, res) => {
 
 // LOGIN
 router.post('/login', async (req, res) => {
-  const { identifier, password } = req.body; // "identifier" = email or phone
+  const { identifier, password } = req.body; // "identifier" can be email or phone
   try {
     if (!identifier || !password) {
       return res
@@ -120,7 +117,7 @@ router.post('/login', async (req, res) => {
         .json({ message: 'Identifier and password are required' });
     }
 
-    // Find user
+    // Find user by email OR phoneNumber
     const user = await User.findOne({
       $or: [{ email: identifier }, { phoneNumber: identifier }],
     });
@@ -176,6 +173,7 @@ router.put('/profile', authenticateToken, async (req, res) => {
     const { name, email, phoneNumber, carInfo, homeAddress } = req.body;
     const updatedData = { name, email, phoneNumber, carInfo, homeAddress };
 
+    // Remove undefined fields
     Object.keys(updatedData).forEach(
       (key) => updatedData[key] === undefined && delete updatedData[key]
     );
@@ -202,6 +200,32 @@ router.get('/allUsers', authenticateToken, async (req, res) => {
   } catch (err) {
     console.error('allUsers Error:', err);
     res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+/**
+ * POST /user/pushtoken
+ * Store the Expo push token for the current logged-in user
+ */
+router.post('/pushtoken', authenticateToken, async (req, res) => {
+  const { expoPushToken } = req.body;
+  if (!expoPushToken) {
+    return res.status(400).json({ message: 'Expo push token is required.' });
+  }
+
+  try {
+    const userDoc = await User.findById(req.user.userId);
+    if (!userDoc) {
+      return res.status(404).json({ message: 'User not found.' });
+    }
+
+    userDoc.expoPushToken = expoPushToken;
+    await userDoc.save();
+
+    return res.json({ message: 'Expo push token saved successfully.' });
+  } catch (error) {
+    console.error('Error saving push token:', error);
+    return res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 

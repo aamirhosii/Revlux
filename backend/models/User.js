@@ -1,4 +1,4 @@
-// models/User.js
+// backend/models/User.js
 const mongoose = require('mongoose');
 
 const UserSchema = new mongoose.Schema({
@@ -14,6 +14,9 @@ const UserSchema = new mongoose.Schema({
   referralCode: { type: String, unique: true, sparse: true },
   referredBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   referralCredits: { type: Number, default: 0 },
+
+  // NEW: Expo push token field
+  expoPushToken: { type: String, default: '' },
 });
 
 module.exports = mongoose.model('User', UserSchema);
