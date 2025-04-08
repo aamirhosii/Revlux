@@ -8,6 +8,7 @@ const authRoutes = require('./routes/auth');
 const bookingRoutes = require('./routes/bookings');  
 const availabilityRoutes = require('./routes/availability');
 const serviceAreasRoutes = require("./routes/service-areas") 
+const userRoutes = require("./routes/users")
 
 // If you want Gift Cards:
 const giftCardRoutes = require('./routes/giftCards'); // Make sure you created giftCards.js
@@ -24,6 +25,7 @@ app.use('/auth', authRoutes.router);
 app.use('/bookings', bookingRoutes);
 app.use('/availability', availabilityRoutes);
 app.use("/service-areas", serviceAreasRoutes)
+app.use("/users", userRoutes)
 
 // If using Gift Cards:
 app.use('/giftcards', giftCardRoutes);
