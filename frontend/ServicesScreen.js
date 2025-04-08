@@ -1,560 +1,630 @@
-// ServicesScreen.js - White Background, Single Header, Black Text
-import React, { useState, useRef } from 'react';
+"use client"
+
+import { useState, useEffect } from "react"
 import {
   View,
   Text,
   StyleSheet,
   SafeAreaView,
   ScrollView,
-  Image,
   TouchableOpacity,
+  Alert,
+  ActivityIndicator,
+  ImageBackground,
   Dimensions,
-  StatusBar,
-  Animated,
-  Easing,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import Carousel, { Pagination } from 'react-native-snap-carousel';
+  TextInput,
+  Modal,
+} from "react-native"
+import { Calendar } from "react-native-calendars"
+import axios from "axios"
+import AsyncStorage from "@react-native-async-storage/async-storage"
+import * as Notifications from "expo-notifications"
+import * as Location from "expo-location"
 
-const { width: screenWidth } = Dimensions.get('window');
+// Set notification handler
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: false,
+    shouldSetBadge: false,
+  }),
+})
 
-const PackageCard = ({ item, isActive }) => {
-  // Animated "pop" scale for the active carousel card
-  const scaleAnim = new Animated.Value(isActive ? 1 : 0.95);
+// Service areas - cities where we provide service
+const SERVICE_AREAS = [
+  "New York",
+  "Los Angeles",
+  "Chicago",
+  "Houston",
+  "Phoenix",
+  "Philadelphia",
+  "San Antonio",
+  "San Diego",
+  "Dallas",
+  "San Jose",
+]
 
-  React.useEffect(() => {
-    Animated.timing(scaleAnim, {
-      toValue: isActive ? 1 : 0.95,
-      duration: 300,
-      easing: Easing.out(Easing.exp),
-      useNativeDriver: true,
-    }).start();
-  }, [isActive]);
+// 6 Services (labels + internal values)
+const SERVICE_TYPES = [
+  { label: "CORE™ (90 Min)", value: "CORE" },
+  { label: "PRO™ (120 Min)", value: "PRO" },
+  { label: "ULTRA™ (180 Min)", value: "ULTRA" },
+  { label: "SAPPHIRE™ (~4h)", value: "SAPPHIRE" },
+  { label: "EMERALD™ (~6h)", value: "EMERALD" },
+  { label: "DIAMOND™ (~8h)", value: "DIAMOND" },
+]
 
-  return (
-    <Animated.View
-      style={[
-        styles.packageCard,
+const { width: screenWidth } = Dimensions.get("window")
+
+export default function BookingScreen({ navigation }) {
+  const [selectedDate, setSelectedDate] = useState(null)
+  const [selectedService, setSelectedService] = useState("CORE")
+  const [availableSlots, setAvailableSlots] = useState([])
+  const [loadingSlots, setLoadingSlots] = useState(false)
+
+  // Location and service area states
+  const [locationVerified, setLocationVerified] = useState(false)
+  const [checkingLocation, setCheckingLocation] = useState(false)
+  const [zipCode, setZipCode] = useState("")
+  const [locationModalVisible, setLocationModalVisible] = useState(true)
+  const [locationError, setLocationError] = useState(null)
+
+  // Request permissions on mount
+  useEffect(() => {
+    requestNotificationPermission()
+    checkLocationPermission()
+  }, [])
+
+  /**
+   * Request and check location permission
+   */
+  const checkLocationPermission = async () => {
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync()
+      if (status === "granted") {
+        // If permission granted, try to get location automatically
+        getLocationAndVerify()
+      } else {
+        // If permission denied, we'll rely on manual zip code entry
+        setLocationError("Location permission denied. Please enter your zip code manually.")
+      }
+    } catch (error) {
+      console.error("Error requesting location permission:", error)
+      setLocationError("Error accessing location services. Please enter your zip code manually.")
+    }
+  }
+
+  /**
+   * Get user's current location and verify if it's in service area
+   */
+  const getLocationAndVerify = async () => {
+    setCheckingLocation(true)
+    try {
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      })
+
+      // Get city name from coordinates
+      const geocode = await Location.reverseGeocodeAsync({
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+      })
+
+      if (geocode && geocode.length > 0) {
+        const city = geocode[0].city
+
+        // Check if city is in our service areas
+        if (city && SERVICE_AREAS.includes(city)) {
+          setLocationVerified(true)
+          setLocationModalVisible(false)
+          Alert.alert("Great News!", `We provide service in ${city}. You can now book an appointment.`)
+        } else {
+          setLocationError(`Sorry, we don't currently provide service in ${city || "your area"}.`)
+        }
+      } else {
+        setLocationError("Unable to determine your city. Please enter your zip code manually.")
+      }
+    } catch (error) {
+      console.error("Error getting location:", error)
+      setLocationError("Error determining your location. Please enter your zip code manually.")
+    } finally {
+      setCheckingLocation(false)
+    }
+  }
+
+  /**
+   * Verify service availability by zip code
+   */
+  const verifyZipCode = async () => {
+    if (!zipCode || zipCode.length < 5) {
+      Alert.alert("Invalid Zip Code", "Please enter a valid zip code.")
+      return
+    }
+
+    setCheckingLocation(true)
+    try {
+      // Call backend to verify zip code is in service area
+      const response = await axios.get(`http://localhost:5001/service-areas/check?zipCode=${zipCode}`)
+
+      if (response.data.available) {
+        setLocationVerified(true)
+        setLocationModalVisible(false)
+        Alert.alert("Great News!", `We provide service in ${response.data.city}. You can now book an appointment.`)
+      } else {
+        setLocationError(`Sorry, we don't currently provide service in ${response.data.city || "your area"}.`)
+      }
+    } catch (error) {
+      console.error("Error verifying zip code:", error)
+      setLocationError("Error verifying your location. Please try again or contact support.")
+    } finally {
+      setCheckingLocation(false)
+    }
+  }
+
+  /**
+   * Request notification permission
+   */
+  const requestNotificationPermission = async () => {
+    const { status: existingStatus } = await Notifications.getPermissionsAsync()
+    let finalStatus = existingStatus
+
+    if (existingStatus !== "granted") {
+      const { status } = await Notifications.requestPermissionsAsync()
+      finalStatus = status
+    }
+
+    if (finalStatus !== "granted") {
+      console.log("Notifications permission not granted!")
+    }
+  }
+
+  /**
+   * Show a local push notification after successful booking
+   */
+  const showBookingNotification = async (service, date, startTime, endTime) => {
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: "Booking Confirmed!",
+        body: `${service} booked on ${date} from ${startTime} to ${endTime}.`,
+        data: { service, date, startTime, endTime },
+      },
+      trigger: null, // Fire instantly (no delay)
+    })
+  }
+
+  // Fetch available slots from server for the chosen date & service
+  const fetchAvailableSlots = async (dateString) => {
+    setLoadingSlots(true)
+    try {
+      const response = await axios.get("http://localhost:5001/availability")
+
+      const dateOnly = new Date(dateString)
+      dateOnly.setHours(0, 0, 0, 0)
+
+      const found = response.data.find((avail) => {
+        const d = new Date(avail.date)
+        d.setHours(0, 0, 0, 0)
+        return d.getTime() === dateOnly.getTime()
+      })
+
+      if (!found) {
+        setAvailableSlots([])
+        setLoadingSlots(false)
+        return
+      }
+
+      // Filter slots for (service === selectedService) and isAvailable
+      const filteredSlots = found.timeSlots.filter((ts) => ts.serviceType === selectedService && ts.isAvailable)
+      setAvailableSlots(filteredSlots)
+    } catch (error) {
+      console.error("Error fetching availability:", error)
+      Alert.alert("Error", "Unable to fetch available slots.")
+    }
+    setLoadingSlots(false)
+  }
+
+  // Called when user taps a date on the Calendar
+  const onDayPress = (day) => {
+    setSelectedDate(day.dateString)
+    fetchAvailableSlots(day.dateString)
+  }
+
+  // Called when user taps a time slot
+  const bookSlot = async (slot) => {
+    if (!locationVerified) {
+      setLocationModalVisible(true)
+      return
+    }
+
+    if (!selectedDate) {
+      Alert.alert("Select Date", "Please select a date first.")
+      return
+    }
+
+    try {
+      const token = await AsyncStorage.getItem("token")
+      const response = await axios.post(
+        "http://localhost:5001/bookings",
         {
-          transform: [{ scale: scaleAnim }],
+          service: selectedService,
+          appointmentDate: selectedDate,
+          startTime: slot.startTime,
+          endTime: slot.endTime,
         },
-        isActive && styles.activePackageCard,
-      ]}
-    >
-      {/* Top Badge */}
-      <View style={styles.packageBadge}>
-        <Text style={styles.packageBadgeText}>{item.name}</Text>
-      </View>
+        { headers: { Authorization: `Bearer ${token}` } },
+      )
+      if (response.status === 201) {
+        Alert.alert("Success", "Booking confirmed!")
+        // Refresh the slots
+        fetchAvailableSlots(selectedDate)
 
-      {/* Car Image (centered) */}
-      <View style={styles.cardImageContainer}>
-        <Image source={item.image} style={styles.packageImage} resizeMode="contain" />
-      </View>
+        // Show local push notification
+        showBookingNotification(selectedService, selectedDate, slot.startTime, slot.endTime)
+      }
+    } catch (error) {
+      console.error("Booking error:", error.response ? error.response.data : error)
+      Alert.alert("Booking Error", error.response?.data?.message || "Error booking slot.")
+    }
+  }
 
-      {/* Price & Duration */}
-      <View style={styles.packagePriceContainer}>
-        <Text style={styles.packagePrice}>{item.price}</Text>
-        <Text style={styles.packageDuration}>{item.duration}</Text>
-      </View>
-
-      {/* "Tap for details" label */}
-      <View style={styles.packageHighlights}>
-        <Text style={styles.highlightText}>Tap for details</Text>
-      </View>
-    </Animated.View>
-  );
-};
-
-const ServiceSection = ({ packages, title, subTitle, navigation }) => {
-  const [activePackage, setActivePackage] = useState(0);
-  const carouselRef = useRef(null);
+  // Called when user taps a service button
+  const onSelectService = (serviceValue) => {
+    setSelectedService(serviceValue)
+    // If a date is already selected, refetch the slots
+    if (selectedDate) {
+      fetchAvailableSlots(selectedDate)
+    }
+  }
 
   return (
-    <View style={styles.serviceSection}>
-      {/* Section Header */}
-      <View style={styles.headerContainer}>
-        <Text style={styles.header}>{title}</Text>
-        <View style={styles.headerUnderline} />
-        <Text style={styles.subHeader}>{subTitle}</Text>
+    <SafeAreaView style={styles.container}>
+      {/* Location Verification Modal */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={locationModalVisible}
+        onRequestClose={() => {
+          if (locationVerified) {
+            setLocationModalVisible(false)
+          }
+        }}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Verify Service Availability</Text>
+            <Text style={styles.modalSubtitle}>
+              We need to check if we provide service in your area before you can book.
+            </Text>
+
+            {locationError && <Text style={styles.errorText}>{locationError}</Text>}
+
+            <View style={styles.zipInputContainer}>
+              <TextInput
+                style={styles.zipInput}
+                placeholder="Enter your ZIP code"
+                keyboardType="numeric"
+                maxLength={5}
+                value={zipCode}
+                onChangeText={setZipCode}
+              />
+              <TouchableOpacity style={styles.verifyButton} onPress={verifyZipCode} disabled={checkingLocation}>
+                <Text style={styles.verifyButtonText}>Verify</Text>
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity style={styles.locationButton} onPress={getLocationAndVerify} disabled={checkingLocation}>
+              <Text style={styles.locationButtonText}>
+                {checkingLocation ? "Checking..." : "Use My Current Location"}
+              </Text>
+            </TouchableOpacity>
+
+            {checkingLocation && <ActivityIndicator size="large" color="#000" style={{ marginTop: 20 }} />}
+
+            {locationVerified && (
+              <TouchableOpacity style={styles.continueButton} onPress={() => setLocationModalVisible(false)}>
+                <Text style={styles.continueButtonText}>Continue to Booking</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* Hero / Header Section */}
+      <View style={styles.heroContainer}>
+        <ImageBackground
+          source={{ uri: "https://via.placeholder.com/1200x400?text=Shelby+Auto+Detailing" }}
+          style={styles.heroImage}
+        >
+          <View style={styles.heroOverlay}>
+            <Text style={styles.heroTitle}>Book an Appointment</Text>
+            <Text style={styles.heroSubtitle}>Select a service and date below</Text>
+          </View>
+        </ImageBackground>
       </View>
 
-      {/* Carousel */}
-      <Carousel
-        ref={carouselRef}
-        data={packages}
-        renderItem={({ item, index }) => (
-          <TouchableOpacity
-            activeOpacity={0.9}
-            onPress={() => {
-              // Could navigate to details or show a modal
-            }}
-          >
-            <PackageCard item={item} isActive={index === activePackage} />
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        {!locationVerified && (
+          <TouchableOpacity style={styles.verifyLocationBanner} onPress={() => setLocationModalVisible(true)}>
+            <Text style={styles.verifyLocationText}>Please verify your location to continue booking</Text>
           </TouchableOpacity>
         )}
-        sliderWidth={screenWidth}
-        itemWidth={screenWidth - 80}
-        onSnapToItem={(index) => setActivePackage(index)}
-        containerCustomStyle={styles.carouselContainer}
-        inactiveSlideScale={0.9}
-        inactiveSlideOpacity={0.5}
-      />
 
-      {/* Pagination */}
-      <Pagination
-        dotsLength={packages.length}
-        activeDotIndex={activePackage}
-        containerStyle={styles.paginationContainer}
-        dotStyle={styles.paginationDot}
-        inactiveDotStyle={styles.paginationInactiveDot}
-        inactiveDotOpacity={0.3}
-        inactiveDotScale={0.7}
-      />
-
-      {/* Package Details */}
-      <View style={styles.detailsContainer}>
-        <View style={styles.detailsHeader}>
-          <Text style={styles.detailsTitle}>Service Details</Text>
-          <Text style={styles.detailsSubtitle}>
-            {packages[activePackage].name} Package
-          </Text>
+        {/* SERVICE SELECTION (BUTTONS) */}
+        <View style={styles.card}>
+          <Text style={styles.cardLabel}>Choose a Service</Text>
+          <View style={styles.serviceButtonRow}>
+            {SERVICE_TYPES.map((item) => {
+              const isActive = item.value === selectedService
+              return (
+                <TouchableOpacity
+                  key={item.value}
+                  style={[styles.serviceButton, isActive && styles.serviceButtonActive]}
+                  onPress={() => onSelectService(item.value)}
+                >
+                  <Text style={[styles.serviceButtonText, isActive && styles.serviceButtonTextActive]}>
+                    {item.label}
+                  </Text>
+                </TouchableOpacity>
+              )
+            })}
+          </View>
         </View>
-        <View style={styles.detailsContent}>
-          {packages[activePackage].description.map((desc, idx) => (
-            <View key={idx} style={styles.detailItem}>
-              <View style={styles.checkmarkCircle}>
-                <Ionicons name="checkmark" size={14} color="#FFF" />
-              </View>
-              <Text style={styles.detailText}>{desc}</Text>
-            </View>
-          ))}
+
+        {/* CALENDAR PICKER */}
+        <View style={styles.card}>
+          <Text style={styles.cardLabel}>Pick a Date</Text>
+          <Calendar
+            onDayPress={onDayPress}
+            markedDates={selectedDate ? { [selectedDate]: { selected: true } } : {}}
+            style={styles.calendar}
+            theme={{
+              textDayFontWeight: "500",
+              textMonthFontWeight: "bold",
+              textDayHeaderFontWeight: "500",
+              arrowColor: "#000",
+            }}
+          />
         </View>
-      </View>
 
-      {/* Book Now Button */}
-      <TouchableOpacity
-        style={styles.bookNowButton}
-        onPress={() =>
-          navigation.navigate('AddOnsScreen', {
-            selectedPackage: packages[activePackage],
-          })
-        }
-      >
-        <View style={styles.bookNowSolid}>
-          <Text style={styles.bookNowText}>
-            BOOK {packages[activePackage].name}
-          </Text>
-          <Ionicons name="arrow-forward" size={20} color="#FFF" />
+        {/* TIME SLOTS */}
+        <View style={styles.card}>
+          <Text style={styles.cardLabel}>Available Time Slots {selectedDate ? `on ${selectedDate}` : ""}</Text>
+
+          {loadingSlots ? (
+            <ActivityIndicator size="large" color="#000" style={{ marginVertical: 10 }} />
+          ) : availableSlots.length > 0 ? (
+            availableSlots.map((slot, index) => (
+              <TouchableOpacity
+                key={index}
+                style={[styles.slotButton, !locationVerified && styles.slotButtonDisabled]}
+                onPress={() => bookSlot(slot)}
+              >
+                <Text style={styles.slotText}>
+                  {slot.startTime} - {slot.endTime}
+                </Text>
+              </TouchableOpacity>
+            ))
+          ) : (
+            <Text style={styles.noSlotsText}>
+              {selectedDate ? "No available slots for this date/service." : "Select a date to see available slots."}
+            </Text>
+          )}
         </View>
-      </TouchableOpacity>
-    </View>
-  );
-};
-
-export default function ServicesScreen({ navigation }) {
-  const [activeService, setActiveService] = useState('detailing');
-
-  // Sample package data
-  const detailingPackages = [
-    {
-      id: 'core',
-      name: 'CORE™',
-      image: require('../assets/core-car.png'),
-      description: [
-        'Comprehensive Vacuum Cleaning',
-        'Dashboard Dusting & Wipe Down',
-        'Door Panel Cleaning',
-        'Window & Mirror Cleaning',
-        'Floor Mat Cleaning',
-      ],
-      duration: '90 Minutes*',
-      price: '$129',
-    },
-    {
-      id: 'pro',
-      name: 'PRO™',
-      image: require('../assets/pro-car.png'),
-      description: [
-        'All CORE™ services plus:',
-        'Interior Deep Steam Cleaning',
-        'Carpet & Floor Mat Shampoo',
-        'Leather Cleaning & Conditioning',
-      ],
-      duration: '120 Minutes*',
-      price: '$199',
-    },
-    {
-      id: 'ultra',
-      name: 'ULTRA™',
-      image: require('../assets/ultra-car.png'),
-      description: [
-        'All PRO™ services plus:',
-        'Interior Ceramic Coating',
-        'Extractor Vacuum Deep Cleaning',
-        'Headliner Cleaning',
-        'Air Vent Cleaning',
-        'Interior Odor Elimination',
-      ],
-      duration: '180 Minutes*',
-      price: '$299',
-    },
-  ];
-
-  const ceramicCoatingPackages = [
-    {
-      id: 'sapphire',
-      name: 'SAPPHIRE™',
-      image: require('../assets/Sapphire.png'),
-      description: [
-        'Exterior Foam Wash',
-        'Exterior Contact Wash',
-        'Tire & Wheel Detail',
-        'Paint Decontamination',
-        '1-Step Paint Correction',
-        'Exterior Ceramic Coating (2 Years)',
-      ],
-      duration: '4 Hours*',
-      price: '$699',
-    },
-    {
-      id: 'emerald',
-      name: 'EMERALD™',
-      image: require('../assets/Emerald.png'),
-      description: [
-        'All SAPPHIRE™ services plus:',
-        'Window Ceramic Coating',
-        '2-Step Paint Correction',
-        'Exterior Ceramic Coating (5 Years)',
-      ],
-      duration: '6 Hours*',
-      price: '$999',
-    },
-    {
-      id: 'diamond',
-      name: 'DIAMOND™',
-      image: require('../assets/Diamond.png'),
-      description: [
-        'All EMERALD™ services plus:',
-        'Wheel Ceramic Coating',
-        '3-Step Paint Correction',
-        'Exterior Ceramic Coating (9 Years)',
-      ],
-      duration: '8 Hours*',
-      price: '$1499',
-    },
-  ];
-
-  return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" />
-
-      {/* 
-        We removed the old custom navBar to avoid a second header.
-        The Stack Navigator (ServicesStack.js) now handles the top header.
-      */}
-
-      {/* Tab Bar */}
-      <View style={styles.tabBar}>
-        <TouchableOpacity
-          style={[
-            styles.tab,
-            activeService === 'detailing' && styles.activeTab,
-          ]}
-          onPress={() => setActiveService('detailing')}
-        >
-          <Ionicons
-            name="car-outline"
-            size={16}
-            color={activeService === 'detailing' ? '#fff' : '#000'}
-            style={styles.tabIcon}
-          />
-          <Text
-            style={[
-              styles.tabText,
-              activeService === 'detailing' && styles.activeTabText,
-            ]}
-          >
-            Detailing
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[
-            styles.tab,
-            activeService === 'ceramicCoating' && styles.activeTab,
-          ]}
-          onPress={() => setActiveService('ceramicCoating')}
-        >
-          <Ionicons
-            name="shield-outline"
-            size={16}
-            color={activeService === 'ceramicCoating' ? '#fff' : '#000'}
-            style={styles.tabIcon}
-          />
-          <Text
-            style={[
-              styles.tabText,
-              activeService === 'ceramicCoating' && styles.activeTabText,
-            ]}
-          >
-            Ceramic Coating
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Main Content */}
-      <ScrollView style={styles.container} bounces={false}>
-        {activeService === 'detailing' ? (
-          <ServiceSection
-            packages={detailingPackages}
-            title="Luxury Detailing"
-            subTitle="Experience Premium Car Care at Your Doorstep"
-            navigation={navigation}
-          />
-        ) : (
-          <ServiceSection
-            packages={ceramicCoatingPackages}
-            title="Ceramic Coating"
-            subTitle="Ultimate Protection, Unmatched Shine"
-            navigation={navigation}
-          />
-        )}
       </ScrollView>
     </SafeAreaView>
-  );
+  )
 }
 
+// ---- STYLES ----
 const styles = StyleSheet.create({
-  /* Safe Area */
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#fff',
-  },
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: "#F0F0F0",
   },
-
-  /* Tab Bar Styles */
-  tabBar: {
-    flexDirection: 'row',
-    backgroundColor: '#f2f2f2',
-    justifyContent: 'space-around',
-    paddingVertical: 10,
+  heroContainer: {
+    width: "100%",
+    height: 200,
+    backgroundColor: "#DDD",
+    overflow: "hidden",
+    marginBottom: 10,
   },
-  tab: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: 20,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    backgroundColor: '#fff',
+  heroImage: {
+    width: "100%",
+    height: "100%",
+    justifyContent: "flex-end",
   },
-  activeTab: {
-    backgroundColor: '#000',
-  },
-  tabIcon: {
-    marginRight: 6,
-  },
-  tabText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#000',
-    textTransform: 'uppercase',
-  },
-  activeTabText: {
-    color: '#fff',
-  },
-
-  /* Service Section */
-  serviceSection: {
-    paddingTop: 25,
+  heroOverlay: {
+    backgroundColor: "rgba(0,0,0,0.4)",
+    paddingVertical: 20,
     paddingHorizontal: 15,
-    paddingBottom: 40,
   },
-  headerContainer: {
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  header: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#000',
-    textAlign: 'center',
+  heroTitle: {
+    fontSize: 28,
+    color: "#FFF",
+    fontWeight: "bold",
     marginBottom: 5,
   },
-  headerUnderline: {
-    width: 40,
-    height: 2,
-    backgroundColor: '#000',
-    marginVertical: 6,
+  heroSubtitle: {
+    fontSize: 16,
+    color: "#FFF",
   },
-  subHeader: {
-    fontSize: 14,
-    color: '#666',
-    textAlign: 'center',
-    paddingHorizontal: 20,
+  scrollContent: {
+    paddingHorizontal: 15,
+    paddingBottom: 30,
   },
-
-  carouselContainer: {
-    marginBottom: 20,
-  },
-
-  /* Package Cards */
-  packageCard: {
-    height: 350,
-    borderRadius: 15,
-    backgroundColor: '#eee',
-    marginVertical: 10,
-    alignItems: 'center',
-    position: 'relative',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.07,
-    shadowRadius: 6,
+  card: {
+    backgroundColor: "#FFF",
+    borderRadius: 10,
+    padding: 15,
+    marginBottom: 15,
+    // iOS shadow
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 3.84,
+    // Android elevation
     elevation: 3,
   },
-  activePackageCard: {
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.2,
-    shadowRadius: 10,
-    elevation: 6,
-  },
-  packageBadge: {
-    width: '100%',
-    paddingVertical: 10,
-    alignItems: 'center',
-    borderTopLeftRadius: 15,
-    borderTopRightRadius: 15,
-    backgroundColor: '#ccc',
-  },
-  packageBadgeText: {
-    color: '#000',
-    fontSize: 16,
-    fontWeight: '700',
-    letterSpacing: 1,
-  },
-  cardImageContainer: {
-    flex: 1,
-    width: '100%',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  packageImage: {
-    width: '70%',
-    height: 140,
-  },
-  packagePriceContainer: {
-    alignItems: 'center',
+  cardLabel: {
+    fontSize: 18,
+    fontWeight: "600",
     marginBottom: 10,
-  },
-  packagePrice: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#000',
-  },
-  packageDuration: {
-    fontSize: 14,
-    color: '#555',
-    marginTop: 4,
-  },
-  packageHighlights: {
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  highlightText: {
-    fontSize: 12,
-    color: '#666',
-    fontStyle: 'italic',
+    color: "#000",
   },
 
-  /* Pagination */
-  paginationContainer: {
-    paddingVertical: 10,
+  // Service Buttons
+  serviceButtonRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
   },
-  paginationDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#000',
-    marginHorizontal: 3,
-  },
-  paginationInactiveDot: {
-    backgroundColor: '#aaa',
-  },
-
-  /* Details Box */
-  detailsContainer: {
-    backgroundColor: '#f7f7f7',
-    padding: 20,
-    borderRadius: 15,
-    marginTop: 10,
-    marginBottom: 25,
-
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.06,
-    shadowRadius: 5,
-    elevation: 2,
-  },
-  detailsHeader: {
-    marginBottom: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#ddd',
-    paddingBottom: 10,
-  },
-  detailsTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#000',
-    marginBottom: 4,
-  },
-  detailsSubtitle: {
-    fontSize: 14,
-    color: '#666',
-  },
-  detailsContent: {
-    marginTop: 10,
-  },
-  detailItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  checkmarkCircle: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: '#000',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 10,
-  },
-  detailText: {
-    fontSize: 14,
-    color: '#000',
-    flex: 1,
-  },
-
-  /* Book Now Button */
-  bookNowButton: {
-    borderRadius: 25,
-    overflow: 'hidden',
-  },
-  bookNowSolid: {
-    backgroundColor: '#000',
-    paddingVertical: 14,
-    paddingHorizontal: 26,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  bookNowText: {
-    color: '#FFF',
-    fontSize: 16,
-    fontWeight: '700',
-    letterSpacing: 1,
+  serviceButton: {
+    borderWidth: 1,
+    borderColor: "#CCC",
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
     marginRight: 8,
-    textTransform: 'uppercase',
+    marginBottom: 8,
+    backgroundColor: "#FFF",
   },
-});
+  serviceButtonActive: {
+    backgroundColor: "#000",
+  },
+  serviceButtonText: {
+    color: "#000",
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  serviceButtonTextActive: {
+    color: "#FFF",
+  },
+
+  calendar: {
+    borderRadius: 10,
+  },
+  slotButton: {
+    backgroundColor: "#000",
+    padding: 15,
+    borderRadius: 8,
+    marginVertical: 5,
+    alignItems: "center",
+  },
+  slotButtonDisabled: {
+    backgroundColor: "#888",
+  },
+  slotText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "500",
+  },
+  noSlotsText: {
+    fontSize: 15,
+    color: "#666",
+    fontStyle: "italic",
+    marginTop: 5,
+  },
+
+  // Location verification modal
+  modalContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0,0,0,0.5)",
+  },
+  modalContent: {
+    width: "90%",
+    backgroundColor: "white",
+    borderRadius: 10,
+    padding: 20,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+    marginBottom: 10,
+  },
+  modalSubtitle: {
+    fontSize: 16,
+    textAlign: "center",
+    marginBottom: 20,
+    color: "#555",
+  },
+  zipInputContainer: {
+    flexDirection: "row",
+    width: "100%",
+    marginBottom: 15,
+  },
+  zipInput: {
+    flex: 1,
+    height: 50,
+    borderWidth: 1,
+    borderColor: "#ccc",
+    borderRadius: 5,
+    paddingHorizontal: 10,
+    marginRight: 10,
+    fontSize: 16,
+  },
+  verifyButton: {
+    backgroundColor: "#000",
+    paddingHorizontal: 15,
+    justifyContent: "center",
+    alignItems: "center",
+    borderRadius: 5,
+  },
+  verifyButtonText: {
+    color: "white",
+    fontSize: 16,
+    fontWeight: "500",
+  },
+  locationButton: {
+    width: "100%",
+    backgroundColor: "#f0f0f0",
+    padding: 15,
+    borderRadius: 5,
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  locationButtonText: {
+    color: "#000",
+    fontSize: 16,
+    fontWeight: "500",
+  },
+  continueButton: {
+    width: "100%",
+    backgroundColor: "#000",
+    padding: 15,
+    borderRadius: 5,
+    alignItems: "center",
+    marginTop: 15,
+  },
+  continueButtonText: {
+    color: "white",
+    fontSize: 16,
+    fontWeight: "500",
+  },
+  errorText: {
+    color: "red",
+    marginBottom: 15,
+    textAlign: "center",
+  },
+  verifyLocationBanner: {
+    backgroundColor: "#FFEB3B",
+    padding: 15,
+    borderRadius: 8,
+    marginBottom: 15,
+    alignItems: "center",
+  },
+  verifyLocationText: {
+    fontSize: 16,
+    fontWeight: "500",
+    color: "#000",
+  },
+})

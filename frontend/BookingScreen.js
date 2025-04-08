@@ -12,13 +12,15 @@ import {
   ImageBackground,
   Dimensions
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Calendar } from 'react-native-calendars';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// 1) Import the expo-notifications library
 import * as Notifications from 'expo-notifications';
 
-// Configure Notifications to show in foreground
+// 2) Set notification handler so that notifications
+// will show when app is in foreground
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
@@ -27,7 +29,7 @@ Notifications.setNotificationHandler({
   }),
 });
 
-// Service types
+// 6 Services (labels + internal values)
 const SERVICE_TYPES = [
   { label: 'CORE™ (90 Min)', value: 'CORE' },
   { label: 'PRO™ (120 Min)', value: 'PRO' },
@@ -45,39 +47,51 @@ export default function BookingScreen({ navigation }) {
   const [availableSlots, setAvailableSlots] = useState([]);
   const [loadingSlots, setLoadingSlots] = useState(false);
 
+  // 3) Request permission for push notifications on mount
   useEffect(() => {
     requestNotificationPermission();
   }, []);
 
-  // Request permissions for notifications (local only here)
+  /**
+   * Request and check push notification permission.
+   * For local notifications, if user denies, they'll just never see them.
+   */
   const requestNotificationPermission = async () => {
     const { status: existingStatus } = await Notifications.getPermissionsAsync();
     let finalStatus = existingStatus;
+
+    // if not granted, prompt user
     if (existingStatus !== 'granted') {
       const { status } = await Notifications.requestPermissionsAsync();
       finalStatus = status;
     }
+
+    // If still not granted, you could alert or handle accordingly
     if (finalStatus !== 'granted') {
-      console.log('Notification permissions not granted!');
+      console.log('Notifications permission not granted!');
     }
   };
 
-  // Show local notification once booked
+  /**
+   * Helper to show a local push notification after successful booking
+   */
   const showBookingNotification = async (service, date, startTime, endTime) => {
     await Notifications.scheduleNotificationAsync({
       content: {
-        title: 'Booking Confirmed',
+        title: 'Booking Confirmed!',
         body: `${service} booked on ${date} from ${startTime} to ${endTime}.`,
+        data: { service, date, startTime, endTime },
       },
-      trigger: null, // immediate
+      trigger: null, // Fire instantly (no delay)
     });
   };
 
-  // Fetch available slots for chosen date & service
+  // Fetch available slots from server for the chosen date & service
   const fetchAvailableSlots = async (dateString) => {
     setLoadingSlots(true);
     try {
       const response = await axios.get('http://localhost:5001/availability');
+
       const dateOnly = new Date(dateString);
       dateOnly.setHours(0, 0, 0, 0);
 
@@ -93,6 +107,7 @@ export default function BookingScreen({ navigation }) {
         return;
       }
 
+      // Filter slots for (service === selectedService) and isAvailable
       const filteredSlots = found.timeSlots.filter(
         (ts) => ts.serviceType === selectedService && ts.isAvailable
       );
@@ -104,11 +119,13 @@ export default function BookingScreen({ navigation }) {
     setLoadingSlots(false);
   };
 
+  // Called when user taps a date on the Calendar
   const onDayPress = (day) => {
     setSelectedDate(day.dateString);
     fetchAvailableSlots(day.dateString);
   };
 
+  // Called when user taps a time slot
   const bookSlot = async (slot) => {
     if (!selectedDate) {
       Alert.alert('Select Date', 'Please select a date first.');
@@ -126,13 +143,18 @@ export default function BookingScreen({ navigation }) {
         },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-
       if (response.status === 201) {
         Alert.alert('Success', 'Booking confirmed!');
+        // Refresh the slots
         fetchAvailableSlots(selectedDate);
 
-        // Show local push notification
-        showBookingNotification(selectedService, selectedDate, slot.startTime, slot.endTime);
+        // 4) Show local push notification
+        showBookingNotification(
+          selectedService,
+          selectedDate,
+          slot.startTime,
+          slot.endTime
+        );
       }
     } catch (error) {
       console.error('Booking error:', error.response ? error.response.data : error);
@@ -140,8 +162,10 @@ export default function BookingScreen({ navigation }) {
     }
   };
 
+  // Called when user taps a service button
   const onSelectService = (serviceValue) => {
     setSelectedService(serviceValue);
+    // If a date is already selected, refetch the slots
     if (selectedDate) {
       fetchAvailableSlots(selectedDate);
     }
@@ -155,33 +179,30 @@ export default function BookingScreen({ navigation }) {
           source={{ uri: 'https://via.placeholder.com/1200x400?text=Shelby+Auto+Detailing' }}
           style={styles.heroImage}
         >
-          {/* Subtle Gradient Overlay */}
-          <LinearGradient
-            colors={['rgba(255,255,255,0)', 'rgba(0,0,0,0.6)']}
-            style={styles.gradientOverlay}
-          />
-          <View style={styles.heroTextContainer}>
+          <View style={styles.heroOverlay}>
             <Text style={styles.heroTitle}>Book an Appointment</Text>
             <Text style={styles.heroSubtitle}>Select a service and date below</Text>
           </View>
         </ImageBackground>
       </View>
 
-      {/* MAIN CONTENT */}
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* SERVICE SELECTION */}
+
+        {/* SERVICE SELECTION (BUTTONS) */}
         <View style={styles.card}>
-          <Text style={styles.cardHeading}>Choose a Service</Text>
+          <Text style={styles.cardLabel}>Choose a Service</Text>
           <View style={styles.serviceButtonRow}>
             {SERVICE_TYPES.map((item) => {
-              const isActive = item.value === selectedService;
+              const isActive = (item.value === selectedService);
               return (
                 <TouchableOpacity
                   key={item.value}
                   style={[styles.serviceButton, isActive && styles.serviceButtonActive]}
                   onPress={() => onSelectService(item.value)}
                 >
-                  <Text style={[styles.serviceButtonText, isActive && styles.serviceButtonTextActive]}>
+                  <Text
+                    style={[styles.serviceButtonText, isActive && styles.serviceButtonTextActive]}
+                  >
                     {item.label}
                   </Text>
                 </TouchableOpacity>
@@ -190,9 +211,9 @@ export default function BookingScreen({ navigation }) {
           </View>
         </View>
 
-        {/* CALENDAR */}
+        {/* CALENDAR PICKER */}
         <View style={styles.card}>
-          <Text style={styles.cardHeading}>Pick a Date</Text>
+          <Text style={styles.cardLabel}>Pick a Date</Text>
           <Calendar
             onDayPress={onDayPress}
             markedDates={selectedDate ? { [selectedDate]: { selected: true } } : {}}
@@ -208,17 +229,17 @@ export default function BookingScreen({ navigation }) {
 
         {/* TIME SLOTS */}
         <View style={styles.card}>
-          <Text style={styles.cardHeading}>
+          <Text style={styles.cardLabel}>
             Available Time Slots {selectedDate ? `on ${selectedDate}` : ''}
           </Text>
 
           {loadingSlots ? (
-            <ActivityIndicator size="large" color="#000" style={{ marginVertical: 12 }} />
+            <ActivityIndicator size="large" color="#000" style={{ marginVertical: 10 }} />
           ) : availableSlots.length > 0 ? (
             availableSlots.map((slot, index) => (
-              <TouchableOpacity
-                key={index}
-                style={styles.slotButton}
+              <TouchableOpacity 
+                key={index} 
+                style={styles.slotButton} 
                 onPress={() => bookSlot(slot)}
               >
                 <Text style={styles.slotText}>
@@ -228,82 +249,74 @@ export default function BookingScreen({ navigation }) {
             ))
           ) : (
             <Text style={styles.noSlotsText}>
-              {selectedDate
+              {selectedDate 
                 ? 'No available slots for this date/service.'
-                : 'Select a date to see available slots.'}
+                : 'Select a date to see available slots.'
+              }
             </Text>
           )}
         </View>
+
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-// ---------------- STYLES ----------------
+// ---- STYLES ----
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#F0F0F0', 
   },
   heroContainer: {
     width: '100%',
-    height: 220,
-    backgroundColor: '#eee',
-    marginBottom: 10,
+    height: 200,
+    backgroundColor: '#DDD',
     overflow: 'hidden',
+    marginBottom: 10,
   },
   heroImage: {
     width: '100%',
     height: '100%',
+    justifyContent: 'flex-end',
   },
-  gradientOverlay: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  heroTextContainer: {
-    position: 'absolute',
-    bottom: 20,
-    left: 20,
+  heroOverlay: {
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    paddingVertical: 20,
+    paddingHorizontal: 15,
   },
   heroTitle: {
     fontSize: 28,
+    color: '#FFF',
     fontWeight: 'bold',
-    color: '#fff',
     marginBottom: 5,
-    textShadowColor: 'rgba(0,0,0,0.4)',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 4,
   },
   heroSubtitle: {
     fontSize: 16,
-    color: '#fff',
-    textShadowColor: 'rgba(0,0,0,0.3)',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 3,
+    color: '#FFF',
   },
   scrollContent: {
     paddingHorizontal: 15,
     paddingBottom: 30,
   },
-
-  // Card
   card: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
+    backgroundColor: '#FFF',
+    borderRadius: 10,
     padding: 15,
     marginBottom: 15,
     // iOS shadow
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 3.84,
     // Android elevation
     elevation: 3,
   },
-  cardHeading: {
+  cardLabel: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#000',
     marginBottom: 10,
+    color: '#000',
   },
 
   // Service Buttons
@@ -312,51 +325,46 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   serviceButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    backgroundColor: '#fafafa',
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: '#CCC',
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
     marginRight: 8,
     marginBottom: 8,
+    backgroundColor: '#FFF',
   },
   serviceButtonActive: {
     backgroundColor: '#000',
-    borderColor: '#000',
   },
   serviceButtonText: {
+    color: '#000',
     fontSize: 14,
     fontWeight: '500',
-    color: '#000',
   },
   serviceButtonTextActive: {
-    color: '#fff',
+    color: '#FFF',
   },
 
-  // Calendar
   calendar: {
     borderRadius: 10,
-    overflow: 'hidden',
   },
-
-  // Slots
   slotButton: {
     backgroundColor: '#000',
+    padding: 15,
     borderRadius: 8,
-    paddingVertical: 14,
-    marginVertical: 6,
+    marginVertical: 5,
     alignItems: 'center',
   },
   slotText: {
     color: '#fff',
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '500',
   },
   noSlotsText: {
-    fontSize: 14,
-    color: '#555',
+    fontSize: 15,
+    color: '#666',
     fontStyle: 'italic',
-    marginTop: 8,
+    marginTop: 5,
   },
 });
