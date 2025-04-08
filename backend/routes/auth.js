@@ -1,7 +1,7 @@
 // backend/routes/auth.js
 const express = require('express');
 const router = express.Router();
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcrypt'); // Using bcrypt (not bcryptjs) for consistency
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 
@@ -229,6 +229,94 @@ router.post('/pushtoken', authenticateToken, async (req, res) => {
   }
 });
 
+// ---------------------------------------------
+// NEW: Forgot Password / OTP routes
+// ---------------------------------------------
+
+// Request password reset OTP
+router.post('/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body;
+    // Check if user exists
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ message: 'User not found with this email address' });
+    }
+
+    // Generate a 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+
+    // Store OTP and expiration (15 minutes)
+    user.resetPasswordOtp = otp;
+    user.resetPasswordExpires = Date.now() + 15 * 60 * 1000; // 15 min
+    await user.save();
+
+    // In real app, send OTP via email (e.g., SendGrid, Mailgun, etc.)
+    console.log(`OTP for ${email}: ${otp}`); // For dev/testing only
+
+    res.status(200).json({ message: 'Password reset code sent to your email' });
+  } catch (error) {
+    console.error('Error in forgot-password:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Verify OTP
+router.post('/verify-otp', async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+
+    // Find user with matching OTP and check if still valid
+    const user = await User.findOne({
+      email,
+      resetPasswordOtp: otp,
+      resetPasswordExpires: { $gt: Date.now() },
+    });
+    if (!user) {
+      return res.status(400).json({ message: 'Invalid or expired verification code' });
+    }
+
+    res.status(200).json({ message: 'OTP verified successfully' });
+  } catch (error) {
+    console.error('Error in verify-otp:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Reset password
+router.post('/reset-password', async (req, res) => {
+  try {
+    const { email, otp, newPassword } = req.body;
+
+    // Find user and check OTP is still valid
+    const user = await User.findOne({
+      email,
+      resetPasswordOtp: otp,
+      resetPasswordExpires: { $gt: Date.now() },
+    });
+    if (!user) {
+      return res.status(400).json({ message: 'Invalid or expired verification code' });
+    }
+
+    // Hash new password
+    const salt = await bcrypt.genSalt(10);
+    user.password = await bcrypt.hash(newPassword, salt);
+
+    // Clear reset fields
+    user.resetPasswordOtp = undefined;
+    user.resetPasswordExpires = undefined;
+    await user.save();
+
+    res.status(200).json({ message: 'Password reset successful' });
+  } catch (error) {
+    console.error('Error in reset-password:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// ---------------------------------------------
+// Export
+// ---------------------------------------------
 module.exports = {
   router,
   authenticateToken,

@@ -1,68 +1,140 @@
 // AppNavigator.js
-import React, { useState, useEffect, createContext } from 'react';
-import { NavigationContainer } from '@react-navigation/native';
-import { createStackNavigator } from '@react-navigation/stack';
-import { createDrawerNavigator } from '@react-navigation/drawer';
+
+"use client";
+import React, { createContext, useState, useEffect, useContext } from "react";
+import { NavigationContainer } from "@react-navigation/native";
+import { createStackNavigator } from "@react-navigation/stack";
+import { createDrawerNavigator } from "@react-navigation/drawer";
 import {
   TouchableOpacity,
   View,
   Text,
   StyleSheet,
-  ActivityIndicator
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+  ActivityIndicator,
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
-// Screens
-import LoginScreen from './LoginScreen';
-import SignupScreen from './SignupScreen';
-import HomeScreen from './HomeScreen';
-import ProfileScreen from './ProfileScreen';
-import ServicesScreen from './ServicesScreen';
-import AddOnsScreen from './AddOn';
-import BookingScreen from './BookingScreen';
-import ContactScreen from './ContactScreen';
-import LogoutScreen from './LogoutScreen';
-import AdminPanel from './AdminPanel';
-import GiftCardAdmin from './GiftCardAdmin'; 
-import CheckoutScreen from './CheckoutScreen';
-
-
-// MY Bookings
-import MyBookingsScreen from './MyBookingsScreen';
-
-// IMPORTANT: Import your ACTUAL screens
-import ReferFriendScreen from './ReferFriendScreen';
-import GiftCardScreen from './GiftCardScreen';
-// (Remove the placeholder definitions entirely)
-
-// If you still want placeholders for others:
+// -- Import all your screens here --
+import LoginScreen from "./LoginScreen";
+import SignupScreen from "./SignupScreen";
+import HomeScreen from "./HomeScreen";
+import ProfileScreen from "./ProfileScreen";
+import ServicesScreen from "./ServicesScreen";
+import AddOnsScreen from "./AddOn";
+import BookingScreen from "./BookingScreen";
+import ContactScreen from "./ContactScreen";
+import LogoutScreen from "./LogoutScreen";
+import AdminPanel from "./AdminPanel";
+import GiftCardAdmin from "./GiftCardAdmin";
+import CheckoutScreen from "./CheckoutScreen";
+import MyBookingsScreen from "./MyBookingsScreen";
+import ReferFriendScreen from "./ReferFriendScreen";
+import GiftCardScreen from "./GiftCardScreen";
+import ForgotPasswordScreen from "./ForgotPasswordScreen";
+// Placeholder screens (if you still need them)
 const RewardsScreen = () => (
   <View style={styles.placeholderScreen}>
     <Text>Rewards Screen</Text>
   </View>
 );
+
 const SupportScreen = () => (
   <View style={styles.placeholderScreen}>
     <Text>Support Screen</Text>
   </View>
 );
 
-export const AuthContext = createContext();
+// -------------------------------------------------
+// AuthContext & AuthProvider
+// -------------------------------------------------
+export const AuthContext = createContext(null);
 
+export const AuthProvider = ({ children }) => {
+  const [user, setUser] = useState(null);
+  const [token, setToken] = useState(null);
+  const [isLoading, setIsLoading] = useState(true); // Start true so we show loader initially
+
+  useEffect(() => {
+    const loadStoredData = async () => {
+      try {
+        const storedToken = await AsyncStorage.getItem("token");
+        const storedUser = await AsyncStorage.getItem("user");
+
+        if (storedToken && storedUser) {
+          setToken(storedToken);
+          setUser(JSON.parse(storedUser));
+        }
+      } catch (error) {
+        console.error("Error loading stored data:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadStoredData();
+  }, []);
+
+  const signIn = async (newToken, newUser) => {
+    setIsLoading(true);
+    try {
+      setToken(newToken);
+      setUser(newUser);
+
+      await AsyncStorage.setItem("token", newToken);
+      await AsyncStorage.setItem("user", JSON.stringify(newUser));
+    } catch (error) {
+      console.error("Error signing in:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const signOut = async () => {
+    setIsLoading(true);
+    try {
+      setToken(null);
+      setUser(null);
+
+      await AsyncStorage.removeItem("token");
+      await AsyncStorage.removeItem("user");
+    } catch (error) {
+      console.error("Error signing out:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const value = {
+    token,
+    user,
+    isLoading,
+    signIn,
+    signOut,
+  };
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+};
+
+// -------------------------------------------------
+// Navigation Setup
+// -------------------------------------------------
 const Stack = createStackNavigator();
 const Drawer = createDrawerNavigator();
 
+/** MainStack - simple stack with Home. */
 function MainStack() {
   return (
     <Stack.Navigator
       initialRouteName="Home"
       screenOptions={({ navigation }) => ({
-        headerStyle: { backgroundColor: '#FFFFFF', elevation: 0, shadowOpacity: 0 },
-        headerTintColor: '#000000',
-        headerTitleStyle: { fontWeight: 'bold' },
+        headerStyle: { backgroundColor: "#FFFFFF", elevation: 0, shadowOpacity: 0 },
+        headerTintColor: "#000000",
+        headerTitleStyle: { fontWeight: "bold" },
         headerLeft: () => (
-          <TouchableOpacity onPress={() => navigation.openDrawer()} style={styles.menuButton}>
+          <TouchableOpacity
+            onPress={() => navigation.openDrawer()}
+            style={styles.menuButton}
+          >
             <Ionicons name="menu-outline" size={32} color="#000000" />
           </TouchableOpacity>
         ),
@@ -71,12 +143,13 @@ function MainStack() {
       <Stack.Screen
         name="Home"
         component={HomeScreen}
-        options={{ title: 'Shelby Auto Detailing' }}
+        options={{ title: "Shelby Auto Detailing" }}
       />
     </Stack.Navigator>
   );
 }
 
+/** ServicesStack - separate stack for services flow. */
 function ServicesStack() {
   return (
     <Stack.Navigator>
@@ -91,32 +164,32 @@ function ServicesStack() {
         options={{ headerShown: false }}
       />
       <Stack.Screen
-        name="CheckoutScreen" // Add CheckoutScreen here
+        name="CheckoutScreen"
         component={CheckoutScreen}
-        options={{ title: 'Checkout' }}
+        options={{ title: "Checkout" }}
       />
     </Stack.Navigator>
   );
 }
 
+/** DrawerNavigator - the side menu. Consumes AuthContext to show/hide Admin stuff. */
 function DrawerNavigator({ navigation }) {
-  const { signOut, user } = React.useContext(AuthContext);
+  const { signOut, user } = useContext(AuthContext);
 
   return (
     <Drawer.Navigator
       screenOptions={{
-        drawerActiveTintColor: '#000000',
-        drawerInactiveTintColor: '#666666',
-        drawerStyle: { backgroundColor: '#FFFFFF', width: 280 },
-        drawerLabelStyle: { fontSize: 16, fontWeight: '600' },
+        drawerActiveTintColor: "#000000",
+        drawerInactiveTintColor: "#666666",
+        drawerStyle: { backgroundColor: "#FFFFFF", width: 280 },
+        drawerLabelStyle: { fontSize: 16, fontWeight: "600" },
       }}
     >
-      {/* HOME STACK */}
       <Drawer.Screen
         name="MainStack"
         component={MainStack}
         options={{
-          title: 'Home',
+          title: "Home",
           headerShown: false,
           drawerIcon: ({ color, size }) => (
             <Ionicons name="home-outline" size={size} color={color} />
@@ -124,7 +197,7 @@ function DrawerNavigator({ navigation }) {
         }}
         listeners={{
           drawerItemPress: () => {
-            navigation.navigate('Main', { screen: 'Home' });
+            navigation.navigate("Main", { screen: "Home" });
           },
         }}
       />
@@ -139,16 +212,14 @@ function DrawerNavigator({ navigation }) {
         }}
       />
 
-      {/* SERVICES STACK */}
       <Drawer.Screen
         name="Services"
         component={ServicesStack}
         options={{
-          title: 'Our Services',
+          title: "Our Services",
           drawerIcon: ({ color, size }) => (
             <Ionicons name="car-outline" size={size} color={color} />
           ),
-          headerShown: true,
         }}
       />
 
@@ -166,14 +237,13 @@ function DrawerNavigator({ navigation }) {
         name="Booking"
         component={BookingScreen}
         options={{
-          title: 'Make a Booking',
+          title: "Make a Booking",
           drawerIcon: ({ color, size }) => (
             <Ionicons name="calendar-outline" size={size} color={color} />
           ),
         }}
       />
 
-      {/* REAL ReferFriendScreen */}
       <Drawer.Screen
         name="Refer a Friend"
         component={ReferFriendScreen}
@@ -184,7 +254,6 @@ function DrawerNavigator({ navigation }) {
         }}
       />
 
-      {/* REAL GiftCardScreen */}
       <Drawer.Screen
         name="Gift Card"
         component={GiftCardScreen}
@@ -195,13 +264,12 @@ function DrawerNavigator({ navigation }) {
         }}
       />
 
-      {/* Admin-only GiftCardAdmin */}
       {user?.isAdmin && (
         <Drawer.Screen
           name="GiftCardAdmin"
           component={GiftCardAdmin}
           options={{
-            title: 'Issue Gift Cards',
+            title: "Issue Gift Cards",
             drawerIcon: ({ color, size }) => (
               <Ionicons name="briefcase-outline" size={size} color={color} />
             ),
@@ -223,7 +291,7 @@ function DrawerNavigator({ navigation }) {
         name="Contact"
         component={ContactScreen}
         options={{
-          title: 'Contact Us',
+          title: "Contact Us",
           drawerIcon: ({ color, size }) => (
             <Ionicons name="call-outline" size={size} color={color} />
           ),
@@ -235,7 +303,7 @@ function DrawerNavigator({ navigation }) {
           name="AdminPanel"
           component={AdminPanel}
           options={{
-            title: 'Admin Panel',
+            title: "Admin Panel",
             drawerIcon: ({ color, size }) => (
               <Ionicons name="settings-outline" size={size} color={color} />
             ),
@@ -261,46 +329,15 @@ function DrawerNavigator({ navigation }) {
   );
 }
 
-export default function AppNavigator() {
-  const [isLoading, setIsLoading] = useState(true);
-  const [userToken, setUserToken] = useState(null);
-  const [user, setUser] = useState(null);
+/** 
+ * InnerNavigation
+ * - This is where we actually use the AuthContext to decide whether to show
+ *   the DrawerNavigator (logged in) or the Auth Stack (Login/Signup).
+ */
+function InnerNavigation() {
+  const { token, isLoading } = useContext(AuthContext);
 
-  const authContext = {
-    signIn: async (token, userObject) => {
-      await AsyncStorage.setItem('token', token);
-      await AsyncStorage.setItem('user', JSON.stringify(userObject));
-      setUserToken(token);
-      setUser(userObject);
-    },
-    signOut: async () => {
-      await AsyncStorage.removeItem('token');
-      await AsyncStorage.removeItem('user');
-      setUserToken(null);
-      setUser(null);
-    },
-    user,
-    userToken,
-  };
-
-  useEffect(() => {
-    const checkToken = async () => {
-      try {
-        const token = await AsyncStorage.getItem('token');
-        const userStr = await AsyncStorage.getItem('user');
-        if (token && userStr) {
-          setUserToken(token);
-          setUser(JSON.parse(userStr));
-        }
-      } catch (e) {
-        console.error('Failed to load token or user', e);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    checkToken();
-  }, []);
-
+  // Show loading spinner while verifying token/user data
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
@@ -309,24 +346,38 @@ export default function AppNavigator() {
     );
   }
 
-  return (
-    <AuthContext.Provider value={authContext}>
-      <NavigationContainer>
-        {userToken ? (
-          <Stack.Navigator screenOptions={{ headerShown: false }}>
-            <Stack.Screen name="Main" component={DrawerNavigator} />
-          </Stack.Navigator>
-        ) : (
-          <Stack.Navigator screenOptions={{ headerShown: false }}>
-            <Stack.Screen name="Login" component={LoginScreen} />
-            <Stack.Screen name="Signup" component={SignupScreen} />
-          </Stack.Navigator>
-        )}
-      </NavigationContainer>
-    </AuthContext.Provider>
+    return (
+    <NavigationContainer>
+      {token ? (
+        // If we have a token, show main drawer
+        <Stack.Navigator screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="Main" component={DrawerNavigator} />
+        </Stack.Navigator>
+      ) : (
+        // Otherwise, show login/signup
+        <Stack.Navigator screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="Login" component={LoginScreen} />
+          <Stack.Screen name="Signup" component={SignupScreen} />
+          <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+        </Stack.Navigator>
+      )}
+    </NavigationContainer>
   );
 }
 
+/**
+ * AppNavigator (Default Export)
+ * - Wraps the InnerNavigation in AuthProvider
+ */
+export default function AppNavigator() {
+  return (
+    <AuthProvider>
+      <InnerNavigation />
+    </AuthProvider>
+  );
+}
+
+// -- STYLES --
 const styles = StyleSheet.create({
   menuButton: {
     marginLeft: 15,
@@ -334,13 +385,13 @@ const styles = StyleSheet.create({
   },
   placeholderScreen: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
   },
   loadingContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
 });

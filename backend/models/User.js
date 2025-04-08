@@ -17,6 +17,10 @@ const UserSchema = new mongoose.Schema({
 
   // NEW: Expo push token field
   expoPushToken: { type: String, default: '' },
+
+  // NEW: Fields for password-reset (OTP)
+  resetPasswordOtp: { type: String }, // We'll store a 6-digit code
+  resetPasswordExpires: { type: Date }, // Expiration time for the OTP
 });
 
 module.exports = mongoose.model('User', UserSchema);
