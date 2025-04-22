@@ -1,4 +1,4 @@
-// models/GiftCard.js
+/ models/GiftCard.js
 const mongoose = require('mongoose');
 
 const GiftCardSchema = new mongoose.Schema({
