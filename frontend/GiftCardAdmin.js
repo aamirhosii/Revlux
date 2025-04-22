@@ -1,4 +1,4 @@
-// GiftCardAdmin.js (admin can create gift cards for any user)
+// GiftCardAdmin.js
 import React, { useEffect, useState, useContext } from 'react';
 import {
   View,
@@ -11,11 +11,10 @@ import {
   ScrollView,
 } from 'react-native';
 import axios from 'axios';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AuthContext } from './AppNavigator';
 
 export default function GiftCardAdmin() {
-  const { userToken } = useContext(AuthContext);
+  const { token } = useContext(AuthContext);
   const [users, setUsers] = useState([]);
   const [selectedUserId, setSelectedUserId] = useState('');
   const [amount, setAmount] = useState('');
@@ -26,10 +25,10 @@ export default function GiftCardAdmin() {
 
   const fetchAllUsers = async () => {
     try {
-      // Suppose we have an admin route: GET /auth/allUsers
-      const res = await axios.get('http://localhost:5001/auth/allUsers', {
-        headers: { Authorization: `Bearer ${userToken}` },
-      });
+      const res = await axios.get(
+        'http://localhost:5001/auth/allUsers',
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
       setUsers(res.data);
     } catch (err) {
       console.error('Error fetching users:', err);
@@ -46,7 +45,7 @@ export default function GiftCardAdmin() {
       await axios.post(
         'http://localhost:5001/giftcards/create',
         { userId: selectedUserId, amount: Number(amount) },
-        { headers: { Authorization: `Bearer ${userToken}` } }
+        { headers: { Authorization: `Bearer ${token}` } }
       );
       Alert.alert('Success', 'Gift card created!');
       setSelectedUserId('');
@@ -64,8 +63,6 @@ export default function GiftCardAdmin() {
         <Text style={styles.subtitle}>Issue Gift Cards to Users</Text>
 
         <Text style={styles.label}>Select a User</Text>
-        {/* For simplicity, a text list. 
-            In production, you'd do a nice dropdown. */}
         {users.map((u) => (
           <TouchableOpacity
             key={u._id}
@@ -96,23 +93,12 @@ export default function GiftCardAdmin() {
   );
 }
 
-// STYLES
 const styles = StyleSheet.create({
-  container: {
-    flex: 1, backgroundColor: '#FFF'
-  },
-  scrollContent: {
-    padding: 20,
-  },
-  title: {
-    fontSize: 26, fontWeight: 'bold', marginBottom: 10
-  },
-  subtitle: {
-    fontSize: 16, marginBottom: 20, color: '#555'
-  },
-  label: {
-    fontSize: 16, fontWeight: '600', marginBottom: 8
-  },
+  container: { flex: 1, backgroundColor: '#FFF' },
+  scrollContent: { padding: 20 },
+  title: { fontSize: 26, fontWeight: 'bold', marginBottom: 10 },
+  subtitle: { fontSize: 16, marginBottom: 20, color: '#555' },
+  label: { fontSize: 16, fontWeight: '600', marginBottom: 8 },
   userItem: {
     borderWidth: 1, borderColor: '#CCC',
     borderRadius: 6, padding: 10,

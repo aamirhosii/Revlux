@@ -5,10 +5,9 @@ import {
 } from 'react-native';
 import { AuthContext } from './AppNavigator';
 import axios from 'axios';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function ReferFriendScreen() {
-  const { userToken } = useContext(AuthContext);
+  const { token } = useContext(AuthContext);
   const [referralCode, setReferralCode] = useState('');
   const [credits, setCredits] = useState(0);
 
@@ -18,9 +17,10 @@ export default function ReferFriendScreen() {
 
   const fetchReferralInfo = async () => {
     try {
-      const res = await axios.get('http://localhost:5001/auth/profile', {
-        headers: { Authorization: `Bearer ${userToken}` },
-      });
+      const res = await axios.get(
+        'http://localhost:5001/auth/profile',
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
       setReferralCode(res.data.referralCode || '');
       setCredits(res.data.referralCredits || 0);
     } catch (err) {
@@ -34,7 +34,7 @@ export default function ReferFriendScreen() {
       await Share.share({
         message: `Join Shelby Auto Detailing! Use my code: ${referralCode}`,
       });
-    } catch (error) {
+    } catch {
       Alert.alert('Error', 'Something went wrong while sharing.');
     }
   };

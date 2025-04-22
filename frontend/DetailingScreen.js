@@ -1,171 +1,269 @@
-// DetailingScreen.js - Enhanced version
-import React from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  SafeAreaView, 
+"use client"
+
+import { useState } from "react"
+import {
+  View,
+  Text,
+  StyleSheet,
+  SafeAreaView,
   ScrollView,
   Image,
   TouchableOpacity,
   Dimensions,
   StatusBar,
-  FlatList
-} from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
+} from "react-native"
+import { Ionicons } from "@expo/vector-icons"
+import { BlurView } from "expo-blur"
 
-const { width: screenWidth } = Dimensions.get('window');
+const { width: screenWidth } = Dimensions.get("window")
 
-const PackageCard = ({ title, price, duration, features, isPopular }) => {
+// Tab data for interior/exterior toggle
+const TABS = [
+  { id: "interior", label: "INTERIOR" },
+  { id: "exterior", label: "EXTERIOR" },
+]
+
+// Package data
+const INTERIOR_PACKAGES = [
+  {
+    id: "mini-interior",
+    title: "Mini Interior Detail",
+    price: "$109",
+    features: [
+      "Vacuuming of the entire interior surfaces",
+      "Thorough wipe down of all surfaces & crevices",
+      "Cleaning of all window & mirrors",
+    ],
+  },
+  {
+    id: "full-interior",
+    title: "Full Interior Detail",
+    price: "$189",
+    isPopular: true,
+    features: [
+      "Intensive complete vacuuming of the entire interior",
+      "Thorough wipe down & sanitization of all surfaces & crevices",
+      "Deep steam shampooing of all carpets, seats, & mats",
+      "Premium leather seats conditioning treatment",
+      "Streak-free cleaning of all window & mirrors",
+      "Vinyl polish finishing for shine & protection on all interior surfaces",
+    ],
+  },
+]
+
+const EXTERIOR_PACKAGES = [
+  {
+    id: "mini-exterior",
+    title: "Mini Exterior Detail",
+    price: "$59",
+    features: [
+      "Professional hand wash & dry of the entire exterior",
+      "Streak-free cleaning of all window & mirrors",
+      "Deep cleaning of the tires & rims",
+      "Tire dressing treatment for enhanced shine",
+      "High-gloss, hydrophobic wax coating application on the paint",
+    ],
+  },
+  {
+    id: "full-exterior",
+    title: "Full Exterior Detail",
+    price: "$159",
+    isPopular: true,
+    features: [
+      "Professional hand wash & dry of the entire exterior",
+      "Streak-free cleaning of all window & mirrors",
+      "Deep cleaning of the tires & rims",
+      "Tire dressing treatment for enhanced shine",
+      "One year ceramic sealant",
+    ],
+  },
+]
+
+const ADDONS = [
+  { id: "pet-hair", title: "Pet Hair Removal", price: "$29" },
+  { id: "7-seater", title: "7 Seaters Interior", price: "$19 extra" },
+  { id: "glass-ceramic", title: "Glass Ceramic Coating", price: "$169" },
+  { id: "odor-removal", title: "Odor Removal", price: "$89" },
+]
+
+const PackageCard = ({ title, price, features, isPopular, onSelect }) => {
   return (
     <View style={[styles.packageCard, isPopular && styles.popularPackage]}>
       {isPopular && (
         <View style={styles.popularBadge}>
-          <Text style={styles.popularBadgeText}>MOST POPULAR</Text>
+          <Text style={styles.popularBadgeText}>RECOMMENDED</Text>
         </View>
       )}
-      <Text style={styles.packageTitle}>{title}</Text>
-      <Text style={styles.packagePrice}>{price}</Text>
-      <Text style={styles.packageDuration}>{duration}</Text>
-      
+      <View style={styles.packageHeader}>
+        <Text style={styles.packageTitle}>{title}</Text>
+        <Text style={styles.packagePrice}>{price}</Text>
+      </View>
+
       <View style={styles.packageDivider} />
-      
+
       {features.map((feature, index) => (
         <View key={index} style={styles.packageFeature}>
-          <Ionicons name="checkmark-circle" size={18} color="#F5C518" />
+          <Ionicons name="checkmark-circle-outline" size={20} color="#000" />
           <Text style={styles.packageFeatureText}>{feature}</Text>
         </View>
       ))}
-      
-      <TouchableOpacity style={[styles.selectButton, isPopular && styles.popularSelectButton]}>
-        <Text style={[styles.selectButtonText, isPopular && styles.popularSelectButtonText]}>
-          SELECT
-        </Text>
+
+      <TouchableOpacity
+        style={[styles.selectButton, isPopular && styles.popularSelectButton]}
+        onPress={onSelect}
+        activeOpacity={0.8}
+      >
+        <Text style={[styles.selectButtonText, isPopular && styles.popularSelectButtonText]}>SELECT</Text>
       </TouchableOpacity>
     </View>
-  );
-};
+  )
+}
+
+const AddonItem = ({ title, price, onSelect, isSelected }) => {
+  return (
+    <TouchableOpacity
+      style={[styles.addonItem, isSelected && styles.addonItemSelected]}
+      onPress={onSelect}
+      activeOpacity={0.7}
+    >
+      <View style={styles.addonContent}>
+        <Text style={styles.addonTitle}>{title}</Text>
+        <Text style={styles.addonPrice}>{price}</Text>
+      </View>
+      <View style={[styles.addonCheckbox, isSelected && styles.addonCheckboxSelected]}>
+        {isSelected && <Ionicons name="checkmark" size={16} color="#fff" />}
+      </View>
+    </TouchableOpacity>
+  )
+}
 
 export default function DetailingScreen({ navigation }) {
-  const packages = [
-    {
-      id: 'core',
-      title: 'CORE™',
-      price: '$129',
-      duration: '90 Minutes*',
-      isPopular: false,
-      features: [
-        'Comprehensive Vacuum',
-        'Dashboard Dusting',
-        'Door Panel Cleaning',
-        'Window Cleaning',
-        'Floor Mat Cleaning'
-      ]
-    },
-    {
-      id: 'pro',
-      title: 'PRO™',
-      price: '$199',
-      duration: '120 Minutes*',
-      isPopular: true,
-      features: [
-        'All CORE™ services',
-        'Interior Deep Steam',
-        'Carpet Shampoo',
-        'Leather Conditioning',
-        'Trim Restoration'
-      ]
-    },
-    {
-      id: 'ultra',
-      title: 'ULTRA™',
-      price: '$299',
-      duration: '180 Minutes*',
-      isPopular: false,
-      features: [
-        'All PRO™ services',
-        'Interior Ceramic Coating',
-        'Deep Extraction Vacuum',
-        'Headliner Cleaning',
-        'Odor Elimination'
-      ]
+  const [activeTab, setActiveTab] = useState("interior")
+  const [selectedAddons, setSelectedAddons] = useState([])
+
+  const toggleAddon = (addonId) => {
+    if (selectedAddons.includes(addonId)) {
+      setSelectedAddons(selectedAddons.filter((id) => id !== addonId))
+    } else {
+      setSelectedAddons([...selectedAddons, addonId])
     }
-  ];
+  }
+
+  const packages = activeTab === "interior" ? INTERIOR_PACKAGES : EXTERIOR_PACKAGES
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" />
-      <ScrollView contentContainerStyle={styles.scrollView}>
-        <LinearGradient
-          colors={['rgba(0,0,0,0.8)', '#1a1a1a']}
-          style={styles.headerGradient}
-        >
-          <View style={styles.headerContent}>
-            <Text style={styles.headerTitle}>LUXURY DETAILING</Text>
-            <View style={styles.headerUnderline} />
-            <Text style={styles.headerSubtitle}>Experience Premium Car Care at Your Doorstep</Text>
-          </View>
-        </LinearGradient>
-        
-        <Image 
-          source={require('../assets/detailing-hero.png')} 
-          style={styles.heroImage}
-          resizeMode="cover"
-        />
-        
+      <StatusBar barStyle="light-content" backgroundColor="#000" />
+
+      {/* Custom Header */}
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerButton} activeOpacity={0.8}>
+          <Ionicons name="arrow-back" size={24} color="#fff" />
+        </TouchableOpacity>
+
+        <Text style={styles.headerTitle}>{activeTab === "interior" ? "INTERIOR DETAILING" : "EXTERIOR DETAILING"}</Text>
+
+        <View style={styles.headerButton} />
+      </View>
+
+      <ScrollView contentContainerStyle={styles.scrollView} showsVerticalScrollIndicator={false}>
+        {/* Hero Image */}
+        <View style={styles.heroContainer}>
+          <Image
+            source={{
+              uri:
+                activeTab === "interior"
+                  ? "https://via.placeholder.com/800x400?text=Interior+Detailing"
+                  : "https://via.placeholder.com/800x400?text=Exterior+Detailing",
+            }}
+            style={styles.heroImage}
+            resizeMode="cover"
+          />
+          <BlurView intensity={60} tint="dark" style={styles.heroOverlay}>
+            <Text style={styles.heroTitle}>{activeTab === "interior" ? "INTERIOR" : "EXTERIOR"}</Text>
+            <Text style={styles.heroSubtitle}>DETAILING SERVICES</Text>
+          </BlurView>
+        </View>
+
+        {/* Tab Selector */}
+        <View style={styles.tabContainer}>
+          {TABS.map((tab) => (
+            <TouchableOpacity
+              key={tab.id}
+              style={[styles.tabButton, activeTab === tab.id && styles.activeTabButton]}
+              onPress={() => setActiveTab(tab.id)}
+              activeOpacity={0.8}
+            >
+              <Text style={[styles.tabText, activeTab === tab.id && styles.activeTabText]}>{tab.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
         <View style={styles.content}>
+          {/* Description */}
           <Text style={styles.description}>
-            Experience the convenience of our professional mobile detailing services. 
-            We bring our expertise directly to your location, ensuring your vehicle 
-            receives top-notch care without you having to leave your home or office.
+            {activeTab === "interior"
+              ? "Our interior detailing services restore and protect your vehicle's cabin, removing dirt, stains, and odors while conditioning surfaces for a fresh, clean interior."
+              : "Our exterior detailing services remove contaminants, restore shine, and protect your vehicle's paint from environmental damage and UV rays."}
           </Text>
-          
-          <Text style={styles.sectionTitle}>Choose Your Package</Text>
-          
-          <View style={styles.packagesContainer}>
-            {packages.map((pkg) => (
-              <PackageCard 
-                key={pkg.id}
-                title={pkg.title} 
-                price={pkg.price} 
-                duration={pkg.duration}
-                features={pkg.features}
-                isPopular={pkg.isPopular}
+
+          {/* Packages */}
+          <Text style={styles.sectionTitle}>SELECT A PACKAGE</Text>
+
+          {packages.map((pkg) => (
+            <PackageCard
+              key={pkg.id}
+              title={pkg.title}
+              price={pkg.price}
+              features={pkg.features}
+              isPopular={pkg.isPopular}
+              onSelect={() => navigation.navigate("Booking")}
+            />
+          ))}
+
+          {/* Add-ons */}
+          <Text style={styles.sectionTitle}>ENHANCE YOUR SERVICE</Text>
+          <View style={styles.addonsContainer}>
+            {ADDONS.map((addon) => (
+              <AddonItem
+                key={addon.id}
+                title={addon.title}
+                price={addon.price}
+                isSelected={selectedAddons.includes(addon.id)}
+                onSelect={() => toggleAddon(addon.id)}
               />
             ))}
           </View>
-          
-          <View style={styles.processSection}>
-            <Text style={styles.sectionTitle}>How It Works</Text>
-            
+
+          {/* Process Section */}
+          <Text style={styles.sectionTitle}>OUR PROCESS</Text>
+
+          <View style={styles.processContainer}>
             <View style={styles.processStep}>
               <View style={styles.processNumberContainer}>
-                <Text style={styles.processNumber}>1</Text>
+                <Text style={styles.processNumber}>01</Text>
               </View>
               <View style={styles.processContent}>
-                <Text style={styles.processTitle}>Choose Your Package</Text>
+                <Text style={styles.processTitle}>Select Your Package</Text>
                 <Text style={styles.processDescription}>
-                  Select the detailing package that best suits your vehicle's needs.
+                  Choose the detailing package that best suits your vehicle's needs.
                 </Text>
               </View>
             </View>
-            
+
             <View style={styles.processStep}>
               <View style={styles.processNumberContainer}>
-                <Text style={styles.processNumber}>2</Text>
+                <Text style={styles.processNumber}>02</Text>
               </View>
               <View style={styles.processContent}>
-                <Text style={styles.processTitle}>Schedule Your Appointment</Text>
-                <Text style={styles.processDescription}>
-                  Pick a date and time that works for your schedule.
-                </Text>
+                <Text style={styles.processTitle}>Schedule Appointment</Text>
+                <Text style={styles.processDescription}>Pick a date and time that works for your schedule.</Text>
               </View>
             </View>
-            
+
             <View style={styles.processStep}>
               <View style={styles.processNumberContainer}>
-                <Text style={styles.processNumber}>3</Text>
+                <Text style={styles.processNumber}>03</Text>
               </View>
               <View style={styles.processContent}>
                 <Text style={styles.processTitle}>We Come To You</Text>
@@ -175,218 +273,310 @@ export default function DetailingScreen({ navigation }) {
               </View>
             </View>
           </View>
-          
-          <TouchableOpacity 
+
+          {/* Book Now Button */}
+          <TouchableOpacity
             style={styles.bookNowButton}
-            onPress={() => navigation.navigate('Services')}
+            onPress={() => navigation.navigate("Booking")}
+            activeOpacity={0.9}
           >
-            <LinearGradient
-              colors={['#F5C518', '#E6B400']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.bookNowGradient}
-            >
-              <Text style={styles.bookNowText}>VIEW ALL PACKAGES</Text>
-            </LinearGradient>
+            <Text style={styles.bookNowText}>BOOK NOW</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
     </SafeAreaView>
-  );
+  )
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#1a1a1a',
+    backgroundColor: "#000",
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingTop: 50,
+    paddingBottom: 16,
+    backgroundColor: "#000",
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.1)",
+  },
+  headerButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.1)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#fff",
+    letterSpacing: 1,
   },
   scrollView: {
     flexGrow: 1,
   },
-  headerGradient: {
-    paddingTop: 40,
-    paddingBottom: 30,
-  },
-  headerContent: {
-    alignItems: 'center',
-    paddingHorizontal: 20,
-  },
-  headerTitle: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#F5C518',
-    textAlign: 'center',
-    letterSpacing: 2,
-  },
-  headerUnderline: {
-    width: 60,
-    height: 3,
-    backgroundColor: '#F5C518',
-    marginVertical: 15,
-  },
-  headerSubtitle: {
-    fontSize: 18,
-    color: '#e0e0e0',
-    textAlign: 'center',
+  heroContainer: {
+    width: "100%",
+    height: 200,
+    position: "relative",
   },
   heroImage: {
-    width: screenWidth,
-    height: 220,
+    width: "100%",
+    height: "100%",
+  },
+  heroOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  heroTitle: {
+    fontSize: 32,
+    fontWeight: "700",
+    color: "#fff",
+    letterSpacing: 2,
+  },
+  heroSubtitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "rgba(255,255,255,0.8)",
+    letterSpacing: 3,
+  },
+  tabContainer: {
+    flexDirection: "row",
+    backgroundColor: "#111",
+    margin: 16,
+    borderRadius: 12,
+    padding: 4,
+    marginTop: -20,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)",
+  },
+  tabButton: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: "center",
+    borderRadius: 8,
+  },
+  activeTabButton: {
+    backgroundColor: "#fff",
+  },
+  tabText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#fff",
+    letterSpacing: 1,
+  },
+  activeTabText: {
+    color: "#000",
   },
   content: {
-    padding: 20,
+    padding: 16,
   },
   description: {
-    fontSize: 16,
-    color: '#e0e0e0',
-    lineHeight: 24,
-    marginBottom: 30,
+    fontSize: 14,
+    lineHeight: 22,
+    color: "rgba(255,255,255,0.7)",
+    marginBottom: 24,
   },
   sectionTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#F5C518',
-    marginBottom: 20,
-  },
-  packagesContainer: {
-    marginBottom: 40,
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#fff",
+    marginBottom: 16,
+    marginTop: 24,
+    letterSpacing: 1,
   },
   packageCard: {
-    backgroundColor: '#252525',
-    borderRadius: 12,
+    backgroundColor: "#111",
+    borderRadius: 16,
     padding: 20,
-    marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.2,
-    shadowRadius: 5,
-    elevation: 5,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)",
   },
   popularPackage: {
-    borderColor: '#F5C518',
-    borderWidth: 2,
-    position: 'relative',
-    paddingTop: 30,
+    borderColor: "#fff",
+    position: "relative",
+    paddingTop: 32,
   },
   popularBadge: {
-    position: 'absolute',
+    position: "absolute",
     top: -12,
     left: 0,
     right: 0,
-    alignItems: 'center',
+    alignItems: "center",
   },
   popularBadgeText: {
-    backgroundColor: '#F5C518',
-    color: '#000',
+    backgroundColor: "#fff",
+    color: "#000",
     fontSize: 12,
-    fontWeight: 'bold',
-    paddingHorizontal: 15,
-    paddingVertical: 5,
-    borderRadius: 15,
-    overflow: 'hidden',
+    fontWeight: "700",
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderRadius: 20,
+    overflow: "hidden",
+    letterSpacing: 1,
+  },
+  packageHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
   },
   packageTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#F5C518',
-    marginBottom: 10,
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#fff",
+    flex: 1,
   },
   packagePrice: {
-    fontSize: 36,
-    fontWeight: 'bold',
-    color: '#ffffff',
-  },
-  packageDuration: {
-    fontSize: 16,
-    color: '#e0e0e0',
-    marginBottom: 15,
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#fff",
   },
   packageDivider: {
     height: 1,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    marginBottom: 15,
+    backgroundColor: "rgba(255,255,255,0.1)",
+    marginBottom: 16,
   },
   packageFeature: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 10,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    marginBottom: 12,
   },
   packageFeatureText: {
     fontSize: 14,
-    color: '#e0e0e0',
-    marginLeft: 10,
+    color: "rgba(255,255,255,0.8)",
+    marginLeft: 12,
+    flex: 1,
+    lineHeight: 20,
   },
   selectButton: {
-    backgroundColor: '#333',
-    borderRadius: 6,
-    paddingVertical: 12,
-    alignItems: 'center',
-    marginTop: 15,
+    backgroundColor: "#f2f2f2",
+    paddingVertical: 14,
+    borderRadius: 30,
+    alignItems: "center",
+    marginTop: 16,
   },
   popularSelectButton: {
-    backgroundColor: '#F5C518',
+    backgroundColor: "#000",
   },
   selectButtonText: {
-    color: '#ffffff',
-    fontWeight: 'bold',
-    fontSize: 16,
+    color: "#000",
+    fontWeight: "600",
+    fontSize: 14,
+    letterSpacing: 1,
   },
   popularSelectButtonText: {
-    color: '#000',
+    color: "#fff",
   },
-  processSection: {
-    marginBottom: 30,
+  addonsContainer: {
+    backgroundColor: "#111",
+    borderRadius: 16,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)",
+  },
+  addonItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.05)",
+  },
+  addonItemSelected: {
+    backgroundColor: "rgba(255,255,255,0.05)",
+  },
+  addonContent: {
+    flex: 1,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginRight: 16,
+  },
+  addonTitle: {
+    fontSize: 16,
+    color: "#fff",
+  },
+  addonPrice: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#fff",
+  },
+  addonCheckbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: "#fff",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  addonCheckboxSelected: {
+    backgroundColor: "#000",
+  },
+  processContainer: {
+    backgroundColor: "#111",
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)",
   },
   processStep: {
-    flexDirection: 'row',
+    flexDirection: "row",
     marginBottom: 20,
   },
   processNumberContainer: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#F5C518',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 15,
+    backgroundColor: "#000",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 16,
   },
   processNumber: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#000',
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#fff",
   },
   processContent: {
     flex: 1,
   },
   processTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#ffffff',
-    marginBottom: 5,
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#fff",
+    marginBottom: 4,
   },
   processDescription: {
     fontSize: 14,
-    color: '#e0e0e0',
+    color: "rgba(255,255,255,0.7)",
     lineHeight: 20,
   },
   bookNowButton: {
-    borderRadius: 8,
-    overflow: 'hidden',
-    marginTop: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 5,
-    elevation: 6,
-  },
-  bookNowGradient: {
+    backgroundColor: "#000",
     paddingVertical: 16,
-    alignItems: 'center',
+    borderRadius: 30,
+    alignItems: "center",
+    marginTop: 32,
   },
   bookNowText: {
-    color: '#000',
-    fontSize: 18,
-    fontWeight: 'bold',
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "700",
     letterSpacing: 1,
   },
-});
+})

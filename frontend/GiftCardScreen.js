@@ -4,11 +4,10 @@ import {
   View, Text, StyleSheet, Alert, TouchableOpacity, FlatList
 } from 'react-native';
 import axios from 'axios';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AuthContext } from './AppNavigator';
 
 export default function GiftCardScreen() {
-  const { userToken } = useContext(AuthContext);
+  const { token } = useContext(AuthContext);
   const [myGiftCards, setMyGiftCards] = useState([]);
 
   useEffect(() => {
@@ -17,9 +16,10 @@ export default function GiftCardScreen() {
 
   const fetchMyGiftCards = async () => {
     try {
-      const res = await axios.get('http://localhost:5001/giftcards/my', {
-        headers: { Authorization: `Bearer ${userToken}` },
-      });
+      const res = await axios.get(
+        'http://localhost:5001/giftcards/my',
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
       setMyGiftCards(res.data);
     } catch (err) {
       Alert.alert('Error', 'Failed to load your gift cards');
@@ -28,9 +28,10 @@ export default function GiftCardScreen() {
 
   const handleRedeem = async (code) => {
     try {
-      const res = await axios.post('http://localhost:5001/giftcards/redeem',
+      const res = await axios.post(
+        'http://localhost:5001/giftcards/redeem',
         { code },
-        { headers: { Authorization: `Bearer ${userToken}` } }
+        { headers: { Authorization: `Bearer ${token}` } }
       );
       Alert.alert('Success', `Gift card redeemed! Amount: $${res.data.amount}`);
       fetchMyGiftCards();
