@@ -1,144 +1,132 @@
-// backend/routes/auth.js
-const express = require('express');
-const router = express.Router();
-const bcrypt = require('bcrypt'); // Using bcrypt (not bcryptjs) for consistency
-const jwt = require('jsonwebtoken');
-const User = require('../models/User');
+// server.js
+const express = require("express");
+const mongoose = require("mongoose");
+const cors = require("cors");
+const dotenv = require("dotenv");
+const bcrypt = require("bcrypt");
+const jwt = require("jsonwebtoken");
+const User = require("./models/User");
+const bookingsRoutes = require("./routes/bookings");
+const serviceAreasRoutes = require("./routes/service-areas");
 
-// Read the JWT secret from environment
-const JWT_SECRET = process.env.JWT_SECRET;
+// Load environment variables
+dotenv.config();
 
-/**
- * Middleware: authenticateToken
- * Reusable for bookings, availability, etc.
- */
+const app = express();
+const PORT = process.env.PORT || 5000;
+
+// Middleware
+app.use(cors());
+app.use(express.json());
+
+// Connect to MongoDB
+mongoose
+  .connect(process.env.MONGODB_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  })
+  .then(() => console.log("MongoDB connected"))
+  .catch((err) => console.error("MongoDB connection error:", err));
+
+// JWT authentication middleware
 function authenticateToken(req, res, next) {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1]; 
-  if (!token) {
-    return res.sendStatus(401); // Unauthorized
-  }
+  const authHeader = req.headers["authorization"];
+  const token = authHeader && authHeader.split(" ")[1];
+  if (!token) return res.sendStatus(401);
 
-  jwt.verify(token, JWT_SECRET, (err, userPayload) => {
-    if (err) {
-      return res.sendStatus(403); // Forbidden
-    }
-    // userPayload: { userId, isAdmin, iat, exp }
-    req.user = userPayload;
+  jwt.verify(token, process.env.JWT_SECRET, (err, userPayload) => {
+    if (err) return res.sendStatus(403);
+    req.user = userPayload; // { userId, isAdmin, iat, exp }
     next();
   });
 }
 
+// -------- AUTH ROUTES -------- //
+
 // SIGNUP
-router.post('/signup', async (req, res) => {
+app.post("/api/auth/signup", async (req, res) => {
   const { name, email, phoneNumber, password, referredByCode } = req.body;
   try {
     if (!email && !phoneNumber) {
-      return res.status(400).json({
-        message: 'Either email or phone number is required',
-      });
+      return res.status(400).json({ message: "Either email or phone number is required" });
     }
 
-    // Check if user already exists by email
     const userExists = await User.findOne({ email });
     if (userExists) {
       const conflictFields = [];
-      if (userExists.email === email) conflictFields.push('email');
-      if (userExists.phoneNumber === phoneNumber) conflictFields.push('phone number');
+      if (userExists.email === email) conflictFields.push("email");
+      if (userExists.phoneNumber === phoneNumber) conflictFields.push("phone number");
       return res.status(409).json({
-        message: `The following already exist: ${conflictFields.join(', ')}`,
+        message: `The following already exist: ${conflictFields.join(", ")}`,
       });
     }
 
-    // Hash the password
     const hashedPassword = await bcrypt.hash(password, 10);
-
-    // Create new user
     const newUser = new User({
       name,
       email: email || null,
       phoneNumber: phoneNumber || null,
       password: hashedPassword,
     });
-    await newUser.save();
+    // generate referral code
+    newUser.referralCode = `SHELBY-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
 
-    // Generate a referral code
-    const referralCode = `SHELBY-${Math.random().toString(36).substring(2,8).toUpperCase()}`;
-    newUser.referralCode = referralCode;
-
-    // If user was referred by someone
     if (referredByCode) {
       const referrer = await User.findOne({ referralCode: referredByCode });
       if (referrer) {
         newUser.referredBy = referrer._id;
-        // Optionally give referrer some credit
         referrer.referralCredits = (referrer.referralCredits || 0) + 10;
         await referrer.save();
       }
     }
 
     await newUser.save();
-    res.status(201).json({ message: 'User registered successfully' });
-
+    return res.status(201).json({ message: "User registered successfully" });
   } catch (err) {
-    console.error('Signup Error:', err);
-    res.status(500).json({ message: 'Server error', error: err.message });
+    console.error("Signup Error:", err);
+    return res.status(500).json({ message: "Server error", error: err.message });
   }
 });
 
-// Check email uniqueness
-router.post('/check-uniqueness', async (req, res) => {
+// CHECK EMAIL UNIQUENESS
+app.post("/api/auth/check-uniqueness", async (req, res) => {
   const { email } = req.body;
   try {
-    // If user is phone-only (email === null), skip
-    if (email === null) {
-      return res.status(200).json({ isUnique: true });
-    }
+    if (email === null) return res.status(200).json({ isUnique: true });
     const userExists = await User.findOne({ email });
     if (userExists) {
-      return res.status(409).json({
-        message: 'Email is already in use',
-      });
+      return res.status(409).json({ message: "Email is already in use" });
     }
     return res.status(200).json({ isUnique: true });
   } catch (err) {
-    console.error('Uniqueness Check Error:', err);
-    return res.status(500).json({ message: 'Server error', error: err.message });
+    console.error("Uniqueness Check Error:", err);
+    return res.status(500).json({ message: "Server error", error: err.message });
   }
 });
 
 // LOGIN
-router.post('/login', async (req, res) => {
-  const { identifier, password } = req.body; // "identifier" can be email or phone
+app.post("/api/auth/login", async (req, res) => {
+  const { identifier, password } = req.body;
   try {
     if (!identifier || !password) {
-      return res
-        .status(400)
-        .json({ message: 'Identifier and password are required' });
+      return res.status(400).json({ message: "Identifier and password are required" });
     }
 
-    // Find user by email OR phoneNumber
     const user = await User.findOne({
       $or: [{ email: identifier }, { phoneNumber: identifier }],
     });
-    if (!user) {
-      return res.status(400).json({ message: 'Invalid credentials' });
-    }
+    if (!user) return res.status(400).json({ message: "Invalid credentials" });
 
-    // Compare password
     const validPassword = await bcrypt.compare(password, user.password);
-    if (!validPassword) {
-      return res.status(400).json({ message: 'Invalid credentials' });
-    }
+    if (!validPassword) return res.status(400).json({ message: "Invalid credentials" });
 
-    // Generate JWT
     const token = jwt.sign(
       { userId: user._id, isAdmin: user.isAdmin },
-      JWT_SECRET,
-      { expiresIn: '1h' }
+      process.env.JWT_SECRET,
+      { expiresIn: "1h" }
     );
 
-    res.json({
+    return res.json({
       token,
       user: {
         name: user.name,
@@ -148,176 +136,140 @@ router.post('/login', async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('Login Error:', err);
-    res.status(500).json({ message: 'Server error', error: err.message });
+    console.error("Login Error:", err);
+    return res.status(500).json({ message: "Server error", error: err.message });
   }
 });
 
-// GET USER PROFILE
-router.get('/profile', authenticateToken, async (req, res) => {
+// GET PROFILE
+app.get("/api/auth/profile", authenticateToken, async (req, res) => {
   try {
-    const user = await User.findById(req.user.userId).select('-password');
-    if (!user) {
-      return res.status(404).json({ message: 'User not found' });
-    }
-    res.json(user);
+    const user = await User.findById(req.user.userId).select("-password");
+    if (!user) return res.status(404).json({ message: "User not found" });
+    return res.json(user);
   } catch (err) {
-    console.error('Get Profile Error:', err);
-    res.status(500).json({ message: 'Server error', error: err.message });
+    console.error("Get Profile Error:", err);
+    return res.status(500).json({ message: "Server error", error: err.message });
   }
 });
 
-// UPDATE USER PROFILE
-router.put('/profile', authenticateToken, async (req, res) => {
+// UPDATE PROFILE
+app.put("/api/auth/profile", authenticateToken, async (req, res) => {
   try {
     const { name, email, phoneNumber, carInfo, homeAddress } = req.body;
     const updatedData = { name, email, phoneNumber, carInfo, homeAddress };
-
-    // Remove undefined fields
     Object.keys(updatedData).forEach(
       (key) => updatedData[key] === undefined && delete updatedData[key]
     );
-
-    const user = await User.findByIdAndUpdate(req.user.userId, updatedData, {
-      new: true,
-    }).select('-password');
-
-    res.json(user);
+    const user = await User.findByIdAndUpdate(req.user.userId, updatedData, { new: true }).select(
+      "-password"
+    );
+    return res.json(user);
   } catch (err) {
-    console.error('Update Profile Error:', err);
-    res.status(500).json({ message: 'Server error', error: err.message });
+    console.error("Update Profile Error:", err);
+    return res.status(500).json({ message: "Server error", error: err.message });
   }
 });
 
-// ADMIN-ONLY: Get all users
-router.get('/allUsers', authenticateToken, async (req, res) => {
+// ADMIN: GET ALL USERS
+app.get("/api/auth/allUsers", authenticateToken, async (req, res) => {
   try {
-    if (!req.user?.isAdmin) {
-      return res.status(403).json({ message: 'Admin only' });
-    }
+    if (!req.user.isAdmin) return res.status(403).json({ message: "Admin only" });
     const users = await User.find({});
-    res.json(users);
+    return res.json(users);
   } catch (err) {
-    console.error('allUsers Error:', err);
-    res.status(500).json({ message: 'Server error', error: err.message });
+    console.error("allUsers Error:", err);
+    return res.status(500).json({ message: "Server error", error: err.message });
   }
 });
 
-/**
- * POST /user/pushtoken
- * Store the Expo push token for the current logged-in user
- */
-router.post('/pushtoken', authenticateToken, async (req, res) => {
+// STORE EXPO PUSH TOKEN
+app.post("/api/auth/pushtoken", authenticateToken, async (req, res) => {
   const { expoPushToken } = req.body;
   if (!expoPushToken) {
-    return res.status(400).json({ message: 'Expo push token is required.' });
+    return res.status(400).json({ message: "Expo push token is required." });
   }
-
   try {
     const userDoc = await User.findById(req.user.userId);
-    if (!userDoc) {
-      return res.status(404).json({ message: 'User not found.' });
-    }
-
+    if (!userDoc) return res.status(404).json({ message: "User not found." });
     userDoc.expoPushToken = expoPushToken;
     await userDoc.save();
-
-    return res.json({ message: 'Expo push token saved successfully.' });
+    return res.json({ message: "Expo push token saved successfully." });
   } catch (error) {
-    console.error('Error saving push token:', error);
-    return res.status(500).json({ message: 'Server error', error: error.message });
+    console.error("Error saving push token:", error);
+    return res.status(500).json({ message: "Server error", error: error.message });
   }
 });
 
-// ---------------------------------------------
-// NEW: Forgot Password / OTP routes
-// ---------------------------------------------
-
-// Request password reset OTP
-router.post('/forgot-password', async (req, res) => {
+// REQUEST PASSWORD RESET OTP
+app.post("/api/auth/forgot-password", async (req, res) => {
   try {
     const { email } = req.body;
-    // Check if user exists
     const user = await User.findOne({ email });
-    if (!user) {
-      return res.status(404).json({ message: 'User not found with this email address' });
-    }
+    if (!user) return res.status(404).json({ message: "User not found with this email address" });
 
-    // Generate a 6-digit OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-
-    // Store OTP and expiration (15 minutes)
     user.resetPasswordOtp = otp;
     user.resetPasswordExpires = Date.now() + 15 * 60 * 1000; // 15 min
     await user.save();
 
-    // In real app, send OTP via email (e.g., SendGrid, Mailgun, etc.)
-    console.log(`OTP for ${email}: ${otp}`); // For dev/testing only
-
-    res.status(200).json({ message: 'Password reset code sent to your email' });
+    console.log(`OTP for ${email}: ${otp}`); // dev only
+    return res.status(200).json({ message: "Password reset code sent to your email" });
   } catch (error) {
-    console.error('Error in forgot-password:', error);
-    res.status(500).json({ message: 'Server error' });
+    console.error("Error in forgot-password:", error);
+    return res.status(500).json({ message: "Server error" });
   }
 });
 
-// Verify OTP
-router.post('/verify-otp', async (req, res) => {
+// VERIFY OTP
+app.post("/api/auth/verify-otp", async (req, res) => {
   try {
     const { email, otp } = req.body;
-
-    // Find user with matching OTP and check if still valid
     const user = await User.findOne({
       email,
       resetPasswordOtp: otp,
       resetPasswordExpires: { $gt: Date.now() },
     });
     if (!user) {
-      return res.status(400).json({ message: 'Invalid or expired verification code' });
+      return res.status(400).json({ message: "Invalid or expired verification code" });
     }
-
-    res.status(200).json({ message: 'OTP verified successfully' });
+    return res.status(200).json({ message: "OTP verified successfully" });
   } catch (error) {
-    console.error('Error in verify-otp:', error);
-    res.status(500).json({ message: 'Server error' });
+    console.error("Error in verify-otp:", error);
+    return res.status(500).json({ message: "Server error" });
   }
 });
 
-// Reset password
-router.post('/reset-password', async (req, res) => {
+// RESET PASSWORD
+app.post("/api/auth/reset-password", async (req, res) => {
   try {
     const { email, otp, newPassword } = req.body;
-
-    // Find user and check OTP is still valid
     const user = await User.findOne({
       email,
       resetPasswordOtp: otp,
       resetPasswordExpires: { $gt: Date.now() },
     });
     if (!user) {
-      return res.status(400).json({ message: 'Invalid or expired verification code' });
+      return res.status(400).json({ message: "Invalid or expired verification code" });
     }
-
-    // Hash new password
-    const salt = await bcrypt.genSalt(10);
-    user.password = await bcrypt.hash(newPassword, salt);
-
-    // Clear reset fields
+    user.password = await bcrypt.hash(newPassword, await bcrypt.genSalt(10));
     user.resetPasswordOtp = undefined;
     user.resetPasswordExpires = undefined;
     await user.save();
-
-    res.status(200).json({ message: 'Password reset successful' });
+    return res.status(200).json({ message: "Password reset successful" });
   } catch (error) {
-    console.error('Error in reset-password:', error);
-    res.status(500).json({ message: 'Server error' });
+    console.error("Error in reset-password:", error);
+    return res.status(500).json({ message: "Server error" });
   }
 });
 
-// ---------------------------------------------
-// Export
-// ---------------------------------------------
-module.exports = {
-  router,
-  authenticateToken,
-};
+// -------- PROTECTED OTHER ROUTES -------- //
+
+app.use("/api/bookings", authenticateToken, bookingsRoutes);
+app.use("/api/service-areas", authenticateToken, serviceAreasRoutes);
+
+// Health check
+app.get("/health", (req, res) => res.status(200).json({ status: "ok" }));
+
+// Start server
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

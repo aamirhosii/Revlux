@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useContext } from "react"
 import {
   View,
   Text,
@@ -14,9 +14,13 @@ import {
   StatusBar,
   Platform,
   Dimensions,
+  ActivityIndicator,
 } from "react-native"
 import { Ionicons } from "@expo/vector-icons"
 import * as Location from "expo-location"
+import { AuthContext } from "./AppNavigator"
+import axios from "axios"
+import { API_URL, SERVICE_TYPES } from "../config"
 
 // Service areas - cities where we provide service
 const SERVICE_AREAS = [
@@ -206,30 +210,44 @@ const AddonCard = ({ addon, selected, onToggle }) => {
 }
 
 export default function ServicesScreen({ navigation }) {
+  const { user, token } = useContext(AuthContext)
   // Location and service area states
   const [locationVerified, setLocationVerified] = useState(false)
   const [checkingLocation, setCheckingLocation] = useState(false)
   const [zipCode, setZipCode] = useState("")
   const [locationModalVisible, setLocationModalVisible] = useState(false)
   const [locationError, setLocationError] = useState(null)
-  const [activeTab, setActiveTab] = useState("interior")
+  const [activeTab, setActiveTab] = useState(SERVICE_TYPES.INTERIOR)
   const [selectedServices, setSelectedServices] = useState({})
   const [selectedAddons, setSelectedAddons] = useState([])
   const [bookingModalVisible, setBookingModalVisible] = useState(false)
   const [bookingForm, setBookingForm] = useState({
-    name: "",
-    email: "",
-    phone: "",
+    name: user?.name || "",
+    email: user?.email || "",
+    phone: user?.phoneNumber || "",
     date: "",
     time: "",
     address: "",
     notes: "",
   })
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   // Request permissions on mount
   useEffect(() => {
     checkLocationPermission()
   }, [])
+
+  // Pre-fill form with user data when available
+  useEffect(() => {
+    if (user) {
+      setBookingForm((prev) => ({
+        ...prev,
+        name: user.name || prev.name,
+        email: user.email || prev.email,
+        phone: user.phoneNumber || prev.phone,
+      }))
+    }
+  }, [user])
 
   /**
    * Request and check location permission
@@ -299,17 +317,22 @@ export default function ServicesScreen({ navigation }) {
 
     setCheckingLocation(true)
     try {
-      // Simulate API call to verify zip code
-      setTimeout(() => {
-        // For demo purposes, assume zip code is valid
+      const response = await axios.get(`${API_URL}/api/service-areas/check?zipCode=${zipCode}`)
+
+      if (response.data.available) {
         setLocationVerified(true)
         setLocationModalVisible(false)
-        Alert.alert("Service Available", "We provide service in your area. You can now book an appointment.")
-        setCheckingLocation(false)
-      }, 1500)
+        Alert.alert(
+          "Service Available",
+          `We provide service in ${response.data.city}. You can now book an appointment.`,
+        )
+      } else {
+        setLocationError(`Sorry, we don't currently provide service in ${response.data.city || "your area"}.`)
+      }
     } catch (error) {
       console.error("Error verifying zip code:", error)
       setLocationError("Error verifying your location. Please try again or contact support.")
+    } finally {
       setCheckingLocation(false)
     }
   }
@@ -320,7 +343,7 @@ export default function ServicesScreen({ navigation }) {
       const newSelection = { ...prev }
 
       // If selecting from interior tab, deselect any previously selected interior service
-      if (activeTab === "interior" && serviceId.includes("interior")) {
+      if (activeTab === SERVICE_TYPES.INTERIOR && serviceId.includes("interior")) {
         Object.keys(newSelection).forEach((key) => {
           if (key.includes("interior")) {
             delete newSelection[key]
@@ -329,7 +352,7 @@ export default function ServicesScreen({ navigation }) {
       }
 
       // If selecting from exterior tab, deselect any previously selected exterior service
-      if (activeTab === "exterior" && serviceId.includes("exterior")) {
+      if (activeTab === SERVICE_TYPES.EXTERIOR && serviceId.includes("exterior")) {
         Object.keys(newSelection).forEach((key) => {
           if (key.includes("exterior")) {
             delete newSelection[key]
@@ -339,7 +362,7 @@ export default function ServicesScreen({ navigation }) {
 
       // If selecting from ceramic tab, deselect any previously selected ceramic package
       if (
-        activeTab === "ceramic" &&
+        activeTab === SERVICE_TYPES.CERAMIC &&
         (serviceId.includes("sapphire") || serviceId.includes("emerald") || serviceId.includes("diamond"))
       ) {
         Object.keys(newSelection).forEach((key) => {
@@ -379,31 +402,8 @@ export default function ServicesScreen({ navigation }) {
     }))
   }
 
-  // Submit booking
-  const submitBooking = () => {
-    // Validate form
-    if (
-      !bookingForm.name ||
-      !bookingForm.email ||
-      !bookingForm.phone ||
-      !bookingForm.date ||
-      !bookingForm.time ||
-      !bookingForm.address
-    ) {
-      Alert.alert("Missing Information", "Please fill in all required fields.")
-      return
-    }
-
-    // Check if at least one service is selected
-    if (Object.keys(selectedServices).length === 0) {
-      Alert.alert("No Service Selected", "Please select at least one service.")
-      return
-    }
-
-    // In a real app, you would send this data to your backend
-    // For now, we'll just simulate a successful booking
-
-    // Prepare selected services for email
+  // Get selected services as formatted strings
+  const getSelectedServicesList = () => {
     const selectedServicesList = []
 
     // Add interior services
@@ -427,43 +427,104 @@ export default function ServicesScreen({ navigation }) {
       }
     })
 
-    // Add selected add-ons
-    const selectedAddonsList = ADDONS.filter((addon) => selectedAddons.includes(addon.id)).map(
-      (addon) => `${addon.title} (${addon.price})`,
-    )
+    return selectedServicesList
+  }
 
-    // Simulate sending email to admin
-    console.log("Booking details:", {
-      customer: bookingForm,
-      services: selectedServicesList,
-      addons: selectedAddonsList,
-    })
+  // Get selected addons as formatted strings
+  const getSelectedAddonsList = () => {
+    return ADDONS.filter((addon) => selectedAddons.includes(addon.id)).map((addon) => `${addon.title} (${addon.price})`)
+  }
 
-    // Show success message
-    Alert.alert(
-      "Booking Submitted",
-      "Your booking request has been sent to our team. We will contact you shortly to confirm your appointment.",
-      [
-        {
-          text: "OK",
-          onPress: () => {
-            setBookingModalVisible(false)
-            // Reset form and selections
-            setBookingForm({
-              name: "",
-              email: "",
-              phone: "",
-              date: "",
-              time: "",
-              address: "",
-              notes: "",
-            })
-            setSelectedServices({})
-            setSelectedAddons([])
-          },
+  // Submit booking
+  const submitBooking = async () => {
+    // Validate form
+    if (
+      !bookingForm.name ||
+      !bookingForm.email ||
+      !bookingForm.phone ||
+      !bookingForm.date ||
+      !bookingForm.time ||
+      !bookingForm.address
+    ) {
+      Alert.alert("Missing Information", "Please fill in all required fields.")
+      return
+    }
+
+    // Check if at least one service is selected
+    if (Object.keys(selectedServices).length === 0) {
+      Alert.alert("No Service Selected", "Please select at least one service.")
+      return
+    }
+
+    // Check if user is logged in
+    if (!token) {
+      Alert.alert("Login Required", "You need to be logged in to book a service.", [
+        { text: "Cancel", style: "cancel" },
+        { text: "Login", onPress: () => navigation.navigate("Login") },
+      ])
+      return
+    }
+
+    setIsSubmitting(true)
+
+    try {
+      // Prepare selected services and addons
+      const selectedServicesList = getSelectedServicesList()
+      const selectedAddonsList = getSelectedAddonsList()
+
+      // Create booking data
+      const bookingData = {
+        customerName: bookingForm.name,
+        email: bookingForm.email,
+        phone: bookingForm.phone,
+        date: bookingForm.date,
+        time: bookingForm.time,
+        address: bookingForm.address,
+        notes: bookingForm.notes,
+        services: selectedServicesList,
+        addons: selectedAddonsList,
+        total: calculateTotal(),
+      }
+
+      // Send booking request to backend
+      const response = await axios.post(`${API_URL}/api/bookings`, bookingData, {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
-      ],
-    )
+      })
+
+      // Show success message
+      Alert.alert(
+        "Booking Submitted",
+        "Your booking request has been sent to our team. We will contact you shortly to confirm your appointment.",
+        [
+          {
+            text: "OK",
+            onPress: () => {
+              setBookingModalVisible(false)
+              // Reset form and selections
+              setBookingForm({
+                name: user?.name || "",
+                email: user?.email || "",
+                phone: user?.phoneNumber || "",
+                date: "",
+                time: "",
+                address: "",
+                notes: "",
+              })
+              setSelectedServices({})
+              setSelectedAddons([])
+            },
+          },
+        ],
+      )
+    } catch (error) {
+      console.error("Error submitting booking:", error)
+      Alert.alert("Booking Failed", "There was an error submitting your booking. Please try again later.")
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   // Calculate total price
@@ -506,8 +567,6 @@ export default function ServicesScreen({ navigation }) {
     return total
   }
 
-  // Modify the return statement to remove the duplicate header
-  // Replace the existing return statement with this one that removes the "Our Services" header
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
@@ -515,7 +574,17 @@ export default function ServicesScreen({ navigation }) {
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Our Services</Text>
-        <TouchableOpacity style={styles.adminButton} onPress={() => navigation.navigate("AdminBookings")}>
+        <TouchableOpacity
+          style={styles.adminButton}
+          onPress={() => {
+            // Only navigate if user is admin
+            if (user?.isAdmin) {
+              navigation.navigate("AdminBookings")
+            } else {
+              Alert.alert("Access Denied", "Only administrators can access this feature.")
+            }
+          }}
+        >
           <Ionicons name="settings-outline" size={24} color="#000" />
         </TouchableOpacity>
       </View>
@@ -523,37 +592,37 @@ export default function ServicesScreen({ navigation }) {
       {/* Service Category Tabs */}
       <View style={styles.tabContainer}>
         <TouchableOpacity
-          style={[styles.tab, activeTab === "interior" && styles.activeTab]}
-          onPress={() => setActiveTab("interior")}
+          style={[styles.tab, activeTab === SERVICE_TYPES.INTERIOR && styles.activeTab]}
+          onPress={() => setActiveTab(SERVICE_TYPES.INTERIOR)}
         >
-          <Text style={[styles.tabText, activeTab === "interior" && styles.activeTabText]}>Interior</Text>
+          <Text style={[styles.tabText, activeTab === SERVICE_TYPES.INTERIOR && styles.activeTabText]}>Interior</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.tab, activeTab === "exterior" && styles.activeTab]}
-          onPress={() => setActiveTab("exterior")}
+          style={[styles.tab, activeTab === SERVICE_TYPES.EXTERIOR && styles.activeTab]}
+          onPress={() => setActiveTab(SERVICE_TYPES.EXTERIOR)}
         >
-          <Text style={[styles.tabText, activeTab === "exterior" && styles.activeTabText]}>Exterior</Text>
+          <Text style={[styles.tabText, activeTab === SERVICE_TYPES.EXTERIOR && styles.activeTabText]}>Exterior</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.tab, activeTab === "ceramic" && styles.activeTab]}
-          onPress={() => setActiveTab("ceramic")}
+          style={[styles.tab, activeTab === SERVICE_TYPES.CERAMIC && styles.activeTab]}
+          onPress={() => setActiveTab(SERVICE_TYPES.CERAMIC)}
         >
-          <Text style={[styles.tabText, activeTab === "ceramic" && styles.activeTabText]}>Ceramic</Text>
+          <Text style={[styles.tabText, activeTab === SERVICE_TYPES.CERAMIC && styles.activeTabText]}>Ceramic</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.tab, activeTab === "addons" && styles.activeTab]}
-          onPress={() => setActiveTab("addons")}
+          style={[styles.tab, activeTab === SERVICE_TYPES.ADDONS && styles.activeTab]}
+          onPress={() => setActiveTab(SERVICE_TYPES.ADDONS)}
         >
-          <Text style={[styles.tabText, activeTab === "addons" && styles.activeTabText]}>Add-ons</Text>
+          <Text style={[styles.tabText, activeTab === SERVICE_TYPES.ADDONS && styles.activeTabText]}>Add-ons</Text>
         </TouchableOpacity>
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Interior Services */}
-        {activeTab === "interior" && (
+        {activeTab === SERVICE_TYPES.INTERIOR && (
           <View>
             <Text style={styles.sectionTitle}>Interior Detailing Services</Text>
             <Text style={styles.sectionDescription}>
@@ -573,7 +642,7 @@ export default function ServicesScreen({ navigation }) {
         )}
 
         {/* Exterior Services */}
-        {activeTab === "exterior" && (
+        {activeTab === SERVICE_TYPES.EXTERIOR && (
           <View>
             <Text style={styles.sectionTitle}>Exterior Detailing Services</Text>
             <Text style={styles.sectionDescription}>
@@ -593,7 +662,7 @@ export default function ServicesScreen({ navigation }) {
         )}
 
         {/* Ceramic Coating Packages */}
-        {activeTab === "ceramic" && (
+        {activeTab === SERVICE_TYPES.CERAMIC && (
           <View>
             <Text style={styles.sectionTitle}>Ceramic Coating Packages</Text>
             <Text style={styles.sectionDescription}>
@@ -614,7 +683,7 @@ export default function ServicesScreen({ navigation }) {
         )}
 
         {/* Add-ons */}
-        {activeTab === "addons" && (
+        {activeTab === SERVICE_TYPES.ADDONS && (
           <View>
             <Text style={styles.sectionTitle}>Service Add-ons</Text>
             <Text style={styles.sectionDescription}>
@@ -793,8 +862,16 @@ export default function ServicesScreen({ navigation }) {
                 <Text style={styles.totalSummaryPrice}>${calculateTotal()}</Text>
               </View>
 
-              <TouchableOpacity style={styles.submitButton} onPress={submitBooking}>
-                <Text style={styles.submitButtonText}>SUBMIT BOOKING</Text>
+              <TouchableOpacity
+                style={[styles.submitButton, isSubmitting && styles.disabledButton]}
+                onPress={submitBooking}
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={styles.submitButtonText}>SUBMIT BOOKING</Text>
+                )}
               </TouchableOpacity>
 
               <View style={styles.spacer} />
@@ -1147,6 +1224,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: 24,
     marginBottom: 20,
+  },
+  disabledButton: {
+    backgroundColor: "#666",
   },
   submitButtonText: {
     color: "#fff",

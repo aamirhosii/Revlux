@@ -1,9 +1,7 @@
-// backend/routes/service-areas.js
 const express = require("express")
 const router = express.Router()
-const axios = require("axios")
 
-// List of cities where we provide service
+// Service areas - cities where we provide service
 const SERVICE_AREAS = [
   "New York",
   "Los Angeles",
@@ -17,53 +15,38 @@ const SERVICE_AREAS = [
   "San Jose",
 ]
 
-// Check if a zip code is in our service area
-router.get("/check", async (req, res) => {
+// Zip code to city mapping (simplified example)
+const ZIP_CODE_MAP = {
+  10001: "New York",
+  10002: "New York",
+  90001: "Los Angeles",
+  90002: "Los Angeles",
+  60601: "Chicago",
+  77001: "Houston",
+  85001: "Phoenix",
+  19101: "Philadelphia",
+  78201: "San Antonio",
+  92101: "San Diego",
+  75201: "Dallas",
+  95101: "San Jose",
+}
+
+// Check if service is available in a zip code
+router.get("/check", (req, res) => {
   const { zipCode } = req.query
 
   if (!zipCode) {
     return res.status(400).json({ message: "Zip code is required" })
   }
 
-  try {
-    // Use a geocoding service to convert zip code to city
-    // For this example, we're using the free Zippopotam.us API
-    const response = await axios.get(`https://api.zippopotam.us/us/${zipCode}`)
+  const city = ZIP_CODE_MAP[zipCode]
+  const available = city && SERVICE_AREAS.includes(city)
 
-    if (response.data && response.data.places && response.data.places.length > 0) {
-      const city = response.data.places[0]["place name"]
-
-      // Check if the city is in our service areas
-      const available = SERVICE_AREAS.some((area) => area.toLowerCase() === city.toLowerCase())
-
-      return res.json({
-        available,
-        city,
-        zipCode,
-      })
-    } else {
-      return res.status(404).json({
-        message: "Invalid zip code or location not found",
-        available: false,
-      })
-    }
-  } catch (error) {
-    console.error("Error checking service area:", error)
-
-    // Handle specific error for invalid zip code
-    if (error.response && error.response.status === 404) {
-      return res.status(404).json({
-        message: "Invalid zip code",
-        available: false,
-      })
-    }
-
-    return res.status(500).json({
-      message: "Error checking service area",
-      error: error.message,
-      available: false,
-    })
-  }
+  res.json({
+    zipCode,
+    city: city || "Unknown",
+    available: !!available,
+  })
 })
 
 // Get all service areas

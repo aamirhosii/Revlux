@@ -18,7 +18,7 @@ import {
 import { Ionicons } from "@expo/vector-icons"
 import { AuthContext } from "./AppNavigator"
 import axios from "axios"
-export const API_URL = "http://localhost:3000"  // ← point this at your backend
+import { API_URL, BOOKING_STATUS } from "../config"
 
 export default function AdminBookingsScreen({ navigation }) {
   const { user, token } = useContext(AuthContext)
@@ -45,18 +45,18 @@ export default function AdminBookingsScreen({ navigation }) {
   const fetchBookings = async () => {
     setLoading(true)
     try {
-      const response = await axios.get(`${API_URL}/bookings/admin`, {
+      const response = await axios.get(`${API_URL}/api/bookings/admin`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
       })
-      
+
       // Filter bookings based on status
       let filteredBookings = response.data
       if (filter !== "all") {
         filteredBookings = response.data.filter((booking) => booking.status === filter)
       }
-      
+
       setBookings(filteredBookings)
     } catch (error) {
       console.error("Error fetching bookings:", error)
@@ -82,7 +82,7 @@ export default function AdminBookingsScreen({ navigation }) {
             setLoading(true)
             try {
               await axios.put(
-                `${API_URL}/bookings/${bookingId}/status`,
+                `${API_URL}/api/bookings/${bookingId}/status`,
                 { status: BOOKING_STATUS.CONFIRMED },
                 {
                   headers: {
@@ -130,7 +130,7 @@ export default function AdminBookingsScreen({ navigation }) {
     setLoading(true)
     try {
       await axios.put(
-        `${API_URL}/bookings/${selectedBookingId}/status`,
+        `${API_URL}/api/bookings/${selectedBookingId}/status`,
         {
           status: BOOKING_STATUS.REJECTED,
           rejectionReason: rejectionReason.trim(),
@@ -248,11 +248,17 @@ export default function AdminBookingsScreen({ navigation }) {
 
       {item.status === BOOKING_STATUS.PENDING && (
         <View style={styles.actionButtons}>
-          <TouchableOpacity style={[styles.actionButton, styles.rejectButton]} onPress={() => openRejectionModal(item._id)}>
+          <TouchableOpacity
+            style={[styles.actionButton, styles.rejectButton]}
+            onPress={() => openRejectionModal(item._id)}
+          >
             <Text style={styles.rejectButtonText}>REJECT</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={[styles.actionButton, styles.confirmButton]} onPress={() => confirmBooking(item._id)}>
+          <TouchableOpacity
+            style={[styles.actionButton, styles.confirmButton]}
+            onPress={() => confirmBooking(item._id)}
+          >
             <Text style={styles.confirmButtonText}>CONFIRM</Text>
           </TouchableOpacity>
         </View>
@@ -286,14 +292,18 @@ export default function AdminBookingsScreen({ navigation }) {
           style={[styles.filterTab, filter === BOOKING_STATUS.CONFIRMED && styles.activeFilterTab]}
           onPress={() => setFilter(BOOKING_STATUS.CONFIRMED)}
         >
-          <Text style={[styles.filterText, filter === BOOKING_STATUS.CONFIRMED && styles.activeFilterText]}>Confirmed</Text>
+          <Text style={[styles.filterText, filter === BOOKING_STATUS.CONFIRMED && styles.activeFilterText]}>
+            Confirmed
+          </Text>
         </TouchableOpacity>
 
         <TouchableOpacity
           style={[styles.filterTab, filter === BOOKING_STATUS.REJECTED && styles.activeFilterTab]}
           onPress={() => setFilter(BOOKING_STATUS.REJECTED)}
         >
-          <Text style={[styles.filterText, filter === BOOKING_STATUS.REJECTED && styles.activeFilterText]}>Rejected</Text>
+          <Text style={[styles.filterText, filter === BOOKING_STATUS.REJECTED && styles.activeFilterText]}>
+            Rejected
+          </Text>
         </TouchableOpacity>
 
         <TouchableOpacity
