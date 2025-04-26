@@ -43,29 +43,35 @@ export default function AdminBookingsScreen({ navigation }) {
   }, [filter])
 
   const fetchBookings = async () => {
-    setLoading(true)
+    setLoading(true);
     try {
-      const response = await axios.get(`${API_URL}/api/bookings/admin`, {
+      console.log("Fetching admin bookings from:", `${API_URL}/bookings/admin`);
+      console.log("With token:", token?.substring(0, 20) + "...");
+      
+      const response = await axios.get(`${API_URL}/bookings/admin`, {
         headers: {
           Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json"
         },
-      })
-
+      });
+      
+      console.log("Admin bookings response:", response.data);
+      
       // Filter bookings based on status
-      let filteredBookings = response.data
+      let filteredBookings = response.data;
       if (filter !== "all") {
-        filteredBookings = response.data.filter((booking) => booking.status === filter)
+        filteredBookings = response.data.filter((booking) => booking.status === filter);
       }
-
-      setBookings(filteredBookings)
+      
+      console.log(`Found ${filteredBookings.length} ${filter} bookings`);
+      setBookings(filteredBookings);
     } catch (error) {
-      console.error("Error fetching bookings:", error)
-      Alert.alert("Error", "Failed to load bookings. Please try again.")
+      console.error("Error fetching bookings:", error.response?.data || error.message);
+      Alert.alert("Error", "Failed to load bookings. Please try again.");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
-
+  };
   // Handle booking confirmation
   const confirmBooking = (bookingId) => {
     Alert.alert(
@@ -82,7 +88,7 @@ export default function AdminBookingsScreen({ navigation }) {
             setLoading(true)
             try {
               await axios.put(
-                `${API_URL}/api/bookings/${bookingId}/status`,
+                `${API_URL}/bookings/${bookingId}/status`,
                 { status: BOOKING_STATUS.CONFIRMED },
                 {
                   headers: {
@@ -130,7 +136,7 @@ export default function AdminBookingsScreen({ navigation }) {
     setLoading(true)
     try {
       await axios.put(
-        `${API_URL}/api/bookings/${selectedBookingId}/status`,
+        `${API_URL}/bookings/${selectedBookingId}/status`,
         {
           status: BOOKING_STATUS.REJECTED,
           rejectionReason: rejectionReason.trim(),

@@ -435,97 +435,103 @@ export default function ServicesScreen({ navigation }) {
     return ADDONS.filter((addon) => selectedAddons.includes(addon.id)).map((addon) => `${addon.title} (${addon.price})`)
   }
 
-  // Submit booking
-  const submitBooking = async () => {
-    // Validate form
-    if (
-      !bookingForm.name ||
-      !bookingForm.email ||
-      !bookingForm.phone ||
-      !bookingForm.date ||
-      !bookingForm.time ||
-      !bookingForm.address
-    ) {
-      Alert.alert("Missing Information", "Please fill in all required fields.")
-      return
-    }
-
-    // Check if at least one service is selected
-    if (Object.keys(selectedServices).length === 0) {
-      Alert.alert("No Service Selected", "Please select at least one service.")
-      return
-    }
-
-    // Check if user is logged in
-    if (!token) {
-      Alert.alert("Login Required", "You need to be logged in to book a service.", [
-        { text: "Cancel", style: "cancel" },
-        { text: "Login", onPress: () => navigation.navigate("Login") },
-      ])
-      return
-    }
-
-    setIsSubmitting(true)
-
-    try {
-      // Prepare selected services and addons
-      const selectedServicesList = getSelectedServicesList()
-      const selectedAddonsList = getSelectedAddonsList()
-
-      // Create booking data
-      const bookingData = {
-        customerName: bookingForm.name,
-        email: bookingForm.email,
-        phone: bookingForm.phone,
-        date: bookingForm.date,
-        time: bookingForm.time,
-        address: bookingForm.address,
-        notes: bookingForm.notes,
-        services: selectedServicesList,
-        addons: selectedAddonsList,
-        total: calculateTotal(),
-      }
-
-      // Send booking request to backend
-      const response = await axios.post(`${API_URL}/api/bookings`, bookingData, {
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-      })
-
-      // Show success message
-      Alert.alert(
-        "Booking Submitted",
-        "Your booking request has been sent to our team. We will contact you shortly to confirm your appointment.",
-        [
-          {
-            text: "OK",
-            onPress: () => {
-              setBookingModalVisible(false)
-              // Reset form and selections
-              setBookingForm({
-                name: user?.name || "",
-                email: user?.email || "",
-                phone: user?.phoneNumber || "",
-                date: "",
-                time: "",
-                address: "",
-                notes: "",
-              })
-              setSelectedServices({})
-              setSelectedAddons([])
-            },
-          },
-        ],
-      )
-    } catch (error) {
-      console.error("Error submitting booking:", error)
-      Alert.alert("Booking Failed", "There was an error submitting your booking. Please try again later.")
-    } finally {
-      setIsSubmitting(false)
-    }
+  
+     // Submit booking
+const submitBooking = async () => {
+  // Validate form
+  if (
+    !bookingForm.name ||
+    !bookingForm.email ||
+    !bookingForm.phone ||
+    !bookingForm.date ||
+    !bookingForm.time ||
+    !bookingForm.address
+  ) {
+    Alert.alert("Missing Information", "Please fill in all required fields.")
+    return
   }
+
+  // Check if at least one service is selected
+  if (Object.keys(selectedServices).length === 0) {
+    Alert.alert("No Service Selected", "Please select at least one service.")
+    return
+  }
+
+  // Check if user is logged in
+  if (!token) {
+    Alert.alert("Login Required", "You need to be logged in to book a service.", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Login", onPress: () => navigation.navigate("Login") },
+    ])
+    return
+  }
+
+  setIsSubmitting(true)
+
+  try {
+    // Prepare selected services and addons
+    const selectedServicesList = getSelectedServicesList()
+    const selectedAddonsList = getSelectedAddonsList()
+
+    // Create booking data
+    const bookingData = {
+      customerName: bookingForm.name,
+      email: bookingForm.email,
+      phone: bookingForm.phone,
+      date: bookingForm.date,
+      time: bookingForm.time,
+      address: bookingForm.address,
+      notes: bookingForm.notes,
+      services: selectedServicesList,
+      addons: selectedAddonsList,
+      total: calculateTotal(),
+    }
+
+    console.log("Making booking request to:", `${API_URL}/bookings`)
+    console.log("With token:", token.substring(0, 10) + "...")
+    console.log("Booking data:", JSON.stringify(bookingData, null, 2))
+    
+    const response = await axios.post(`${API_URL}/api/bookings`, bookingData, {
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+    })
+    
+    console.log("Booking response:", response.data)
+
+    // Show success message
+    Alert.alert(
+      "Booking Submitted",
+      "Your booking request has been sent to our team. We will contact you shortly to confirm your appointment.",
+      [
+        {
+          text: "OK",
+          onPress: () => {
+            setBookingModalVisible(false)
+            // Reset form and selections
+            setBookingForm({
+              name: user?.name || "",
+              email: user?.email || "",
+              phone: user?.phoneNumber || "",
+              date: "",
+              time: "",
+              address: "",
+              notes: "",
+            })
+            setSelectedServices({})
+            setSelectedAddons([])
+          },
+        },
+      ]
+    )
+  } catch (error) {
+    console.error("Error submitting booking:", error)
+    Alert.alert("Booking Failed", "There was an error submitting your booking. Please try again later.")
+  } finally {
+    setIsSubmitting(false)
+  }
+}
 
   // Calculate total price
   const calculateTotal = () => {

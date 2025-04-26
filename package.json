@@ -52,7 +52,9 @@
     "react-native-tab": "^1.0.0",
     "react-native-tab-view": "^4.0.1",
     "react-native-vector-icons": "^10.2.0",
-    "react-router-dom": "^6.28.0"
+    "react-router-dom": "^6.28.0",
+    "socket.io": "^4.8.1",
+    "socket.io-client": "^4.8.1"
   },
   "scripts": {
     "start": "expo start",

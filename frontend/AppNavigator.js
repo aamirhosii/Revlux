@@ -15,13 +15,13 @@ import SignupScreen from "./SignupScreen"
 import HomeScreen from "./HomeScreen"
 import ProfileScreen from "./ProfileScreen"
 import ServicesScreen from "./ServicesScreen"
-import AddOnsScreen from "./AddOn"
-import BookingScreen from "./BookingScreen"
+//import AddOnsScreen from "./AddOn"
+//import BookingScreen from "./BookingScreen"
 import ContactScreen from "./ContactScreen"
 import LogoutScreen from "./LogoutScreen"
 import AdminPanel from "./AdminPanel"
 import GiftCardAdmin from "./GiftCardAdmin"
-import CheckoutScreen from "./CheckoutScreen"
+//import CheckoutScreen from "./CheckoutScreen"
 import MyBookingsScreen from "./MyBookingsScreen"
 import ReferFriendScreen from "./ReferFriendScreen"
 import GiftCardScreen from "./GiftCardScreen"
@@ -144,8 +144,7 @@ function ServicesStack() {
   return (
     <Stack.Navigator>
       <Stack.Screen name="Services" component={ServicesScreen} options={{ headerShown: false }} />
-      <Stack.Screen name="AddOnsScreen" component={AddOnsScreen} options={{ headerShown: false }} />
-      <Stack.Screen name="CheckoutScreen" component={CheckoutScreen} options={{ title: "Checkout" }} />
+     
       <Stack.Screen name="AdminBookings" component={AdminBookingsScreen} options={{ title: "Manage Bookings" }} />
     </Stack.Navigator>
   )
@@ -204,14 +203,16 @@ function DrawerNavigator({ navigation }) {
         }}
       />
 
-      <Drawer.Screen
+    {/* 
+     <Drawer.Screen
         name="Booking"
         component={BookingScreen}
         options={{
           title: "Make a Booking",
           drawerIcon: ({ color, size }) => <Ionicons name="calendar-outline" size={size} color={color} />,
         }}
-      />
+      /> 
+     */} 
 
       <Drawer.Screen
         name="Refer a Friend"

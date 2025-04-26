@@ -1,24 +1,22 @@
-// API URL configuration
-export const API_URL = "http://localhost:5001" // Change this to your actual backend URL
+// config.js — Central configuration file
 
-// Service types
+// Base URL for all REST endpoints (backend routes are all mounted under /api)
+export const API_URL = "http://localhost:5001";
+
+// URL for your Socket.io server (no /api prefix)
+export const SOCKET_URL = "http://localhost:5001";
+
+// Booking status constants
+export const BOOKING_STATUS = {
+  PENDING: "pending",
+  CONFIRMED: "confirmed",
+  REJECTED: "rejected",
+};
+
+// Service types for tab navigation
 export const SERVICE_TYPES = {
   INTERIOR: "interior",
   EXTERIOR: "exterior",
   CERAMIC: "ceramic",
   ADDONS: "addons",
-}
-
-// Booking statuses
-export const BOOKING_STATUS = {
-  PENDING: "pending",
-  CONFIRMED: "confirmed",
-  REJECTED: "rejected",
-}
-
-// JWT token storage key
-export const TOKEN_STORAGE_KEY = "token"
-export const USER_STORAGE_KEY = "user"
-
-// Environment variables
-export const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key" // Make sure to set this in your environment
+};

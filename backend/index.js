@@ -22,7 +22,7 @@ app.use(express.urlencoded({ extended: true }));
 
 // Use the router from authRoutes.router
 app.use('/auth', authRoutes.router);
-app.use('/bookings', bookingRoutes);
+app.use('/api/bookings', bookingRoutes);
 app.use('/availability', availabilityRoutes);
 app.use("/service-areas", serviceAreasRoutes)
 app.use("/users", userRoutes)
