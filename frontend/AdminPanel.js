@@ -20,6 +20,7 @@ import {
 import axios from "axios"
 import AsyncStorage from "@react-native-async-storage/async-storage"
 import { Ionicons } from "@expo/vector-icons"
+import { API_URL } from "../config"
 
 // Minimum durations (in minutes) for each service
 const SERVICE_DURATIONS = {
@@ -58,80 +59,6 @@ const TABS = {
   BOOKINGS: "BOOKINGS", // New tab for bookings
 }
 
-// Mock data for bookings
-const MOCK_BOOKINGS = [
-  {
-    id: "1",
-    name: "John Smith",
-    email: "john.smith@example.com",
-    phone: "(555) 123-4567",
-    date: "05/15/2025",
-    time: "10:00 AM",
-    address: "123 Main St, New York, NY 10001",
-    services: ["Full Interior Detail ($189)"],
-    addons: ["Pet Hair Removal ($29)"],
-    total: 218,
-    status: "pending",
-    createdAt: "2025-04-20T14:30:00Z",
-  },
-  {
-    id: "2",
-    name: "Sarah Johnson",
-    email: "sarah.j@example.com",
-    phone: "(555) 987-6543",
-    date: "05/16/2025",
-    time: "2:30 PM",
-    address: "456 Park Ave, New York, NY 10022",
-    services: ["Full Exterior Detail ($159)", "Mini Interior Detail ($109)"],
-    addons: ["Glass Ceramic Coating ($169)"],
-    total: 437,
-    status: "pending",
-    createdAt: "2025-04-20T16:45:00Z",
-  },
-  {
-    id: "3",
-    name: "Michael Brown",
-    email: "michael.b@example.com",
-    phone: "(555) 456-7890",
-    date: "05/18/2025",
-    time: "9:00 AM",
-    address: "789 Broadway, New York, NY 10003",
-    services: ["Emerald Ceramic Coating ($799)"],
-    addons: [],
-    total: 799,
-    status: "pending",
-    createdAt: "2025-04-21T09:15:00Z",
-  },
-  {
-    id: "4",
-    name: "Emily Wilson",
-    email: "emily.w@example.com",
-    phone: "(555) 234-5678",
-    date: "05/20/2025",
-    time: "1:00 PM",
-    address: "321 5th Ave, New York, NY 10016",
-    services: ["Mini Exterior Detail ($59)"],
-    addons: ["Odor Removal ($89)"],
-    total: 148,
-    status: "pending",
-    createdAt: "2025-04-21T11:30:00Z",
-  },
-  {
-    id: "5",
-    name: "David Lee",
-    email: "david.l@example.com",
-    phone: "(555) 876-5432",
-    date: "05/22/2025",
-    time: "11:30 AM",
-    address: "654 Madison Ave, New York, NY 10065",
-    services: ["Diamond Ceramic Coating ($999)"],
-    addons: ["Glass Ceramic Coating ($169)"],
-    total: 1168,
-    status: "pending",
-    createdAt: "2025-04-22T08:45:00Z",
-  },
-]
-
 export default function AdminPanel() {
   // Availability state
   const [date, setDate] = useState("")
@@ -166,9 +93,10 @@ export default function AdminPanel() {
   // Bookings state
   const [bookings, setBookings] = useState([])
   const [bookingFilter, setBookingFilter] = useState("pending") // pending, confirmed, all
+  const [debugInfo, setDebugInfo] = useState({})
 
   // Active tab state
-  const [activeTab, setActiveTab] = useState(TABS.AVAILABILITY)
+  const [activeTab, setActiveTab] = useState(TABS.BOOKINGS)
 
   useEffect(() => {
     if (activeTab === TABS.AVAILABILITY) {
@@ -212,21 +140,74 @@ export default function AdminPanel() {
   }
 
   // Fetch bookings
-  const fetchBookings = async () => {
-    setIsLoading(true)
-    try {
-      // In a real app, you would fetch this data from your backend
-      // For now, we'll use the mock data
-      setBookings(MOCK_BOOKINGS)
-    } catch (error) {
-      console.error("Error fetching bookings:", error)
-      Alert.alert("Error", "Failed to fetch bookings")
-    } finally {
-      setIsLoading(false)
-      setRefreshing(false)
-    }
-  }
+  // Replace the fetchBookings function with this improved version
 
+// Update the fetchBookings function to include the /api prefix:
+
+const fetchBookings = async () => {
+  setIsLoading(true);
+  try {
+    const token = await AsyncStorage.getItem("token");
+    if (!token) {
+      setDebugInfo(prev => ({
+        ...prev,
+        error: "No authentication token found",
+        status: "401"
+      }));
+      setBookings([]);
+      setIsLoading(false);
+      return;
+    }
+
+    // Add /api prefix to match your backend route configuration
+    console.log("Fetching bookings from:", `${API_URL}/api/bookings`);
+    
+    const response = await axios.get(`${API_URL}/api/bookings`, {
+      headers: { 
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json" 
+      },
+    });
+    
+    console.log(`Found ${response.data.length} bookings from API`);
+    setBookings(response.data);
+    setDebugInfo(prev => ({
+      ...prev,
+      bookingsFetched: true,
+      count: response.data.length,
+      lastFetch: new Date().toLocaleTimeString(),
+      error: null
+    }));
+  } catch (error) {
+    console.error("Error fetching bookings:", error);
+    
+    let errorMessage = "Failed to fetch bookings";
+    let statusCode = error.response?.status || "Unknown";
+    
+    if (error.response) {
+      errorMessage = error.response.data?.message || errorMessage;
+      statusCode = error.response.status;
+    } else if (error.request) {
+      errorMessage = "No response from server";
+    } else {
+      errorMessage = error.message;
+    }
+    
+    setDebugInfo(prev => ({
+      ...prev,
+      error: errorMessage,
+      status: statusCode,
+      request: `${API_URL}/api/bookings`,
+      tokenExists: !!token
+    }));
+    
+    // Clear any existing bookings
+    setBookings([]);
+  } finally {
+    setIsLoading(false);
+    setRefreshing(false);
+  }
+};
   // Handle search input change
   const handleSearch = (text) => {
     setSearchQuery(text)
@@ -284,67 +265,91 @@ export default function AdminPanel() {
   }
 
   // Handle booking confirmation
-  const confirmBooking = (bookingId) => {
-    Alert.alert(
-      "Confirm Booking",
-      "Are you sure you want to confirm this booking? This will send a confirmation notification to the customer.",
-      [
-        {
-          text: "Cancel",
-          style: "cancel",
-        },
-        {
-          text: "Confirm",
-          onPress: () => {
-            // Update booking status
-            const updatedBookings = bookings.map((booking) => {
-              if (booking.id === bookingId) {
-                return { ...booking, status: "confirmed" }
+  // Update the confirmBooking function:
+
+const confirmBooking = (bookingId) => {
+  Alert.alert(
+    "Confirm Booking",
+    "Are you sure you want to confirm this booking?",
+    [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Confirm",
+        onPress: async () => {
+          try {
+            const token = await AsyncStorage.getItem("token");
+            await axios.put(
+              `${API_URL}/api/bookings/${bookingId}/status`, // Add /api prefix
+              { status: "confirmed" },
+              {
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${token}`,
+                },
               }
-              return booking
-            })
+            );
 
-            setBookings(updatedBookings)
+            // Update local state
+            setBookings((prevBookings) =>
+              prevBookings.map((booking) =>
+                booking._id === bookingId ? { ...booking, status: "confirmed" } : booking
+              )
+            );
 
-            // In a real app, you would send a notification to the customer here
-            Alert.alert("Booking Confirmed", "The customer has been notified about their confirmed booking.")
-          },
+            Alert.alert("Success", "Booking confirmed successfully");
+            fetchBookings();
+          } catch (error) {
+            console.error("Error confirming booking:", error);
+            Alert.alert("Error", "Failed to confirm booking. Please try again.");
+          }
         },
-      ]
-    )
-  }
+      },
+    ]
+  );
+};
 
-  // Handle booking rejection
-  const rejectBooking = (bookingId) => {
-    Alert.alert(
-      "Reject Booking",
-      "Are you sure you want to reject this booking? This will send a notification to the customer.",
-      [
-        {
-          text: "Cancel",
-          style: "cancel",
-        },
-        {
-          text: "Reject",
-          style: "destructive",
-          onPress: () => {
-            // Update booking status
-            const updatedBookings = bookings.map((booking) => {
-              if (booking.id === bookingId) {
-                return { ...booking, status: "rejected" }
+// Update the rejectBooking function:
+const rejectBooking = (bookingId) => {
+  Alert.alert(
+    "Reject Booking",
+    "Are you sure you want to reject this booking?",
+    [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Reject",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            const token = await AsyncStorage.getItem("token");
+            await axios.put(
+              `${API_URL}/api/bookings/${bookingId}/status`, // Add /api prefix
+              { status: "rejected" },
+              {
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${token}`,
+                },
               }
-              return booking
-            })
+            );
 
-            setBookings(updatedBookings)
+            // Update local state
+            setBookings((prevBookings) =>
+              prevBookings.map((booking) =>
+                booking._id === bookingId ? { ...booking, status: "rejected" } : booking
+              )
+            );
 
-            // In a real app, you would send a notification to the customer here
-            Alert.alert("Booking Rejected", "The customer has been notified about their rejected booking.")
-          },
+            Alert.alert("Success", "Booking rejected successfully");
+            fetchBookings();
+          } catch (error) {
+            console.error("Error rejecting booking:", error);
+            Alert.alert("Error", "Failed to reject booking. Please try again.");
+          }
         },
-      ]
-    )
-  }
+      },
+    ]
+  );
+};
 
   // This function auto-calculates the endTime based on startTime + serviceDuration
   const addTimeSlotToList = () => {
@@ -450,7 +455,7 @@ export default function AdminPanel() {
     <View style={styles.bookingCard}>
       <View style={styles.bookingHeader}>
         <View>
-          <Text style={styles.customerName}>{item.name}</Text>
+          <Text style={styles.customerName}>{item.customerName}</Text>
           <Text style={styles.bookingDate}>
             {item.date} at {item.time}
           </Text>
@@ -497,7 +502,7 @@ export default function AdminPanel() {
           </Text>
         ))}
 
-        {item.addons.length > 0 && (
+        {item.addons && item.addons.length > 0 && (
           <>
             <Text style={[styles.sectionTitle, { marginTop: 8 }]}>Add-ons:</Text>
             {item.addons.map((addon, index) => (
@@ -516,11 +521,17 @@ export default function AdminPanel() {
 
       {item.status === "pending" && (
         <View style={styles.actionButtons}>
-          <TouchableOpacity style={[styles.actionButton, styles.rejectButton]} onPress={() => rejectBooking(item.id)}>
+          <TouchableOpacity 
+            style={[styles.actionButton, styles.rejectButton]} 
+            onPress={() => rejectBooking(item._id)}
+          >
             <Text style={styles.rejectButtonText}>REJECT</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={[styles.actionButton, styles.confirmButton]} onPress={() => confirmBooking(item.id)}>
+          <TouchableOpacity 
+            style={[styles.actionButton, styles.confirmButton]} 
+            onPress={() => confirmBooking(item._id)}
+          >
             <Text style={styles.confirmButtonText}>CONFIRM</Text>
           </TouchableOpacity>
         </View>
@@ -805,33 +816,91 @@ export default function AdminPanel() {
             </TouchableOpacity>
 
             <TouchableOpacity
+              style={[styles.filterTab, bookingFilter === "rejected" && styles.activeFilterTab]}
+              onPress={() => setBookingFilter("rejected")}
+            >
+              <Text style={[styles.filterText, bookingFilter === "rejected" && styles.activeFilterText]}>
+                Rejected
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
               style={[styles.filterTab, bookingFilter === "all" && styles.activeFilterTab]}
               onPress={() => setBookingFilter("all")}
             >
               <Text style={[styles.filterText, bookingFilter === "all" && styles.activeFilterText]}>All</Text>
             </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.filterTab, bookingFilter === "debug" && styles.activeFilterTab]}
+              onPress={() => setBookingFilter("debug")}
+            >
+              <Text style={[styles.filterText, bookingFilter === "debug" && styles.activeFilterText]}>Debug</Text>
+            </TouchableOpacity>
           </View>
 
           {/* Bookings List */}
-          {isLoading && !refreshing ? (
-  <ActivityIndicator size="large" color="#000" style={styles.loader} />
-) : filteredBookings.length === 0 ? (
-  <View style={styles.emptyContainer}>
-    <Ionicons name="calendar-outline" size={64} color="#ccc" />
-    <Text style={styles.emptyText}>
-      No {bookingFilter !== 'all' ? bookingFilter : ''} bookings found
-    </Text>
+          {bookingFilter === "debug" ? (
+  <View style={styles.debugContainer}>
+    <Text style={styles.debugTitle}>API Debug Info</Text>
+    <Text style={styles.debugItem}>API URL: {API_URL}/api/bookings</Text>
+    <Text style={styles.debugItem}>Bookings Fetched: {String(debugInfo.bookingsFetched || false)}</Text>
+    <Text style={styles.debugItem}>Booking Count: {debugInfo.count || 0}</Text>
+    <Text style={styles.debugItem}>Last Fetch: {debugInfo.lastFetch || 'Never'}</Text>
+    <Text style={styles.debugItem}>Token Exists: {String(debugInfo.tokenExists || 'Unknown')}</Text>
+    
+    {debugInfo.message && (
+      <Text style={styles.debugItem}>Message: {debugInfo.message}</Text>
+    )}
+    
+    {debugInfo.error && (
+      <Text style={styles.debugItemError}>Error: {debugInfo.error}</Text>
+    )}
+    
+    <Text style={styles.debugItem}>Status Code: {debugInfo.status || 'N/A'}</Text>
+    
+    {debugInfo.fallbackSuccess && (
+      <Text style={styles.debugItemSuccess}>Using fallback endpoint successfully!</Text>
+    )}
+    
+    <View style={styles.debugButtonContainer}>
+      <TouchableOpacity style={styles.debugButton} onPress={fetchBookings}>
+        <Text style={styles.debugButtonText}>Refresh Bookings</Text>
+      </TouchableOpacity>
+      
+      <TouchableOpacity 
+        style={[styles.debugButton, {backgroundColor: '#5856D6'}]} 
+        onPress={async () => {
+          const token = await AsyncStorage.getItem("token");
+          setDebugInfo(prev => ({
+            ...prev, 
+            tokenInfo: token ? `${token.substring(0, 10)}...` : 'No token'
+          }));
+        }}
+      >
+        <Text style={styles.debugButtonText}>Check Token</Text>
+      </TouchableOpacity>
+    </View>
   </View>
-) : (
-  <FlatList
-    data={filteredBookings}
-    renderItem={renderBookingItem}
-    keyExtractor={(item) => item.id}
-    contentContainerStyle={styles.bookingList}
-    refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-    ListFooterComponent={<View style={{ height: 20 }} />}
-  />
-)}
+)  : isLoading && !refreshing ? (
+            <ActivityIndicator size="large" color="#000" style={styles.loader} />
+          ) : filteredBookings.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Ionicons name="calendar-outline" size={64} color="#ccc" />
+              <Text style={styles.emptyText}>
+                No {bookingFilter !== 'all' ? bookingFilter : ''} bookings found
+              </Text>
+            </View>
+          ) : (
+            <FlatList
+              data={filteredBookings}
+              renderItem={renderBookingItem}
+              keyExtractor={(item) => item._id}
+              contentContainerStyle={styles.bookingList}
+              refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+              ListFooterComponent={<View style={{ height: 20 }} />}
+            />
+          )}
         </View>
       </>
     )
@@ -989,7 +1058,6 @@ const styles = StyleSheet.create({
     color: "#000",
     backgroundColor: "#fff",
   },
-
   pickerContainer: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -1376,11 +1444,13 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     marginBottom: 15,
     marginTop: 5,
+    flexWrap: "wrap",
   },
   filterTab: {
     paddingVertical: 8,
     paddingHorizontal: 16,
     marginRight: 10,
+    marginBottom: 8,
     borderRadius: 20,
     backgroundColor: "#f5f5f5",
   },
@@ -1397,5 +1467,48 @@ const styles = StyleSheet.create({
   },
   bookingList: {
     paddingBottom: 20,
+  },
+  // Debug styles
+  debugContainer: {
+    padding: 20,
+  },
+  debugTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 15,
+  },
+  debugItem: {
+    fontSize: 14,
+    color: '#333',
+    marginBottom: 8,
+  },
+  debugItemError: {
+    fontSize: 14,
+    color: '#cc0000',
+    marginBottom: 8,
+  },
+  debugButton: {
+    backgroundColor: '#007AFF',
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 15,
+  },
+  debugButtonText: {
+    color: 'white',
+    fontWeight: '600',
+  },
+
+  debugItemSuccess: {
+    fontSize: 14,
+    color: '#009900',
+    marginBottom: 8,
+    fontWeight: '600',
+  },
+
+  debugButtonContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 15,
   },
 })

@@ -14,6 +14,7 @@ import {
   TextInput,
   ActivityIndicator,
   Modal,
+  ScrollView,
 } from "react-native"
 import { Ionicons } from "@expo/vector-icons"
 import { AuthContext } from "./AppNavigator"
@@ -28,50 +29,112 @@ export default function AdminBookingsScreen({ navigation }) {
   const [rejectionModal, setRejectionModal] = useState(false)
   const [rejectionReason, setRejectionReason] = useState("")
   const [selectedBookingId, setSelectedBookingId] = useState(null)
+  const [debugInfo, setDebugInfo] = useState({})
 
   // Check if user is admin, if not redirect to home
   useEffect(() => {
+    console.log("------ ADMIN PANEL INIT -------")
+    console.log("Current user:", JSON.stringify(user))
+    console.log("Is admin?", user?.isAdmin)
+    console.log("API URL:", API_URL)
+    
     if (!user?.isAdmin) {
       Alert.alert("Access Denied", "You don't have permission to access this page.")
       navigation.navigate("Main", { screen: "Home" })
+      return
     }
+
+    setDebugInfo({
+      apiUrl: API_URL,
+      userEmail: user?.email || "No email",
+      isAdmin: user?.isAdmin || false,
+      tokenPreview: token ? `${token.substring(0, 15)}...` : "No token"
+    })
+    
+    fetchBookings()
   }, [user, navigation])
 
-  // Load bookings on component mount
+  // Load bookings when filter changes
   useEffect(() => {
-    fetchBookings()
-  }, [filter])
+    if (user?.isAdmin && filter !== "debug") {
+      fetchBookings()
+    }
+  }, [filter, user?.isAdmin])
+
+  // Test API function for debugging
+  const testAdminAPI = () => {
+    console.log("Testing admin API directly")
+    setDebugInfo(prev => ({...prev, testing: true}))
+    
+    fetch(`${API_URL}/bookings/admin`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json"
+      }
+    })
+    .then(response => {
+      console.log("Status:", response.status)
+      setDebugInfo(prev => ({...prev, status: response.status}))
+      return response.json()
+    })
+    .then(data => {
+      console.log("Test API response:", JSON.stringify(data))
+      if (Array.isArray(data)) {
+        console.log(`Found ${data.length} bookings in test`)
+        setDebugInfo(prev => ({
+          ...prev, 
+          testing: false, 
+          results: `Found ${data.length} bookings`,
+          data: JSON.stringify(data, null, 2).substring(0, 500) + '...'
+        }))
+        Alert.alert("API Test Result", `Found ${data.length} bookings`)
+      } else {
+        setDebugInfo(prev => ({
+          ...prev, 
+          testing: false, 
+          results: "Response is not an array",
+          data: JSON.stringify(data, null, 2)
+        }))
+      }
+    })
+    .catch(error => {
+      console.error("Test API error:", error)
+      setDebugInfo(prev => ({...prev, testing: false, error: error.toString()}))
+      Alert.alert("API Test Error", error.toString())
+    })
+  }
 
   const fetchBookings = async () => {
-    setLoading(true);
+    setLoading(true)
     try {
-      console.log("Fetching admin bookings from:", `${API_URL}/bookings/admin`);
-      console.log("With token:", token?.substring(0, 20) + "...");
+      console.log("Fetching admin bookings from:", `${API_URL}/bookings/admin`)
+      console.log("With token:", token?.substring(0, 20) + "...")
       
       const response = await axios.get(`${API_URL}/bookings/admin`, {
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json"
         },
-      });
+      })
       
-      console.log("Admin bookings response:", response.data);
+      console.log("Admin bookings response:", response.data)
       
       // Filter bookings based on status
-      let filteredBookings = response.data;
-      if (filter !== "all") {
-        filteredBookings = response.data.filter((booking) => booking.status === filter);
+      let filteredBookings = response.data
+      if (filter !== "all" && filter !== "debug") {
+        filteredBookings = response.data.filter((booking) => booking.status === filter)
       }
       
-      console.log(`Found ${filteredBookings.length} ${filter} bookings`);
-      setBookings(filteredBookings);
+      console.log(`Found ${filteredBookings.length} ${filter} bookings`)
+      setBookings(filteredBookings)
     } catch (error) {
-      console.error("Error fetching bookings:", error.response?.data || error.message);
-      Alert.alert("Error", "Failed to load bookings. Please try again.");
+      console.error("Error fetching bookings:", error.response?.data || error.message)
+      Alert.alert("Error", "Failed to load bookings. Please try again.")
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
+
   // Handle booking confirmation
   const confirmBooking = (bookingId) => {
     Alert.alert(
@@ -272,6 +335,65 @@ export default function AdminBookingsScreen({ navigation }) {
     </View>
   )
 
+  // Debug view
+  const renderDebugView = () => (
+    <ScrollView style={styles.debugContainer}>
+      <Text style={styles.debugTitle}>Admin Panel Debugging</Text>
+      
+      <View style={styles.debugSection}>
+        <Text style={styles.debugSectionTitle}>Configuration</Text>
+        <Text style={styles.debugItem}>API URL: {debugInfo.apiUrl}/bookings/admin</Text>
+        <Text style={styles.debugItem}>User Email: {debugInfo.userEmail}</Text>
+        <Text style={styles.debugItem}>Is Admin: {String(debugInfo.isAdmin)}</Text>
+        <Text style={styles.debugItem}>Token: {debugInfo.tokenPreview}</Text>
+      </View>
+
+      <View style={styles.debugActions}>
+        <TouchableOpacity style={styles.debugButton} onPress={testAdminAPI}>
+          <Text style={styles.debugButtonText}>
+            {debugInfo.testing ? "Testing..." : "Test API Directly"}
+          </Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity style={styles.debugButton} onPress={fetchBookings}>
+          <Text style={styles.debugButtonText}>Fetch Bookings Again</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity 
+          style={[styles.debugButton, {backgroundColor: '#cc0000'}]} 
+          onPress={() => {
+            console.log("CURRENT BOOKINGS:", JSON.stringify(bookings));
+            Alert.alert("Current Bookings", `Count: ${bookings.length}`);
+          }}
+        >
+          <Text style={styles.debugButtonText}>Show Current Bookings</Text>
+        </TouchableOpacity>
+      </View>
+
+      {debugInfo.status && (
+        <View style={styles.debugSection}>
+          <Text style={styles.debugSectionTitle}>API Test Results</Text>
+          <Text style={styles.debugItem}>Status Code: {debugInfo.status}</Text>
+          {debugInfo.results && <Text style={styles.debugItem}>{debugInfo.results}</Text>}
+          {debugInfo.error && <Text style={[styles.debugItem, {color: 'red'}]}>{debugInfo.error}</Text>}
+        </View>
+      )}
+      
+      {debugInfo.data && (
+        <View style={styles.debugSection}>
+          <Text style={styles.debugSectionTitle}>Response Data Preview</Text>
+          <Text style={styles.debugCode}>{debugInfo.data}</Text>
+        </View>
+      )}
+      
+      <View style={styles.debugSection}>
+        <Text style={styles.debugSectionTitle}>Bookings State ({bookings.length})</Text>
+        <Text style={styles.debugCode}>{JSON.stringify(bookings.slice(0, 1), null, 2)}</Text>
+        {bookings.length > 1 && <Text style={styles.debugItem}>... and {bookings.length - 1} more</Text>}
+      </View>
+    </ScrollView>
+  )
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
@@ -282,7 +404,9 @@ export default function AdminBookingsScreen({ navigation }) {
           <Ionicons name="arrow-back" size={24} color="#000" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Manage Bookings</Text>
-        <View style={{ width: 24 }} />
+        <TouchableOpacity onPress={fetchBookings}>
+          <Ionicons name="refresh" size={24} color="#000" />
+        </TouchableOpacity>
       </View>
 
       {/* Filter Tabs */}
@@ -318,10 +442,19 @@ export default function AdminBookingsScreen({ navigation }) {
         >
           <Text style={[styles.filterText, filter === "all" && styles.activeFilterText]}>All</Text>
         </TouchableOpacity>
+        
+        <TouchableOpacity
+          style={[styles.filterTab, filter === "debug" && styles.activeFilterTab]}
+          onPress={() => setFilter("debug")}
+        >
+          <Text style={[styles.filterText, filter === "debug" && styles.activeFilterText]}>Debug</Text>
+        </TouchableOpacity>
       </View>
 
-      {/* Bookings List */}
-      {loading ? (
+      {/* Bookings List or Debug View */}
+      {filter === "debug" ? (
+        renderDebugView()
+      ) : loading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#000" />
           <Text style={styles.loadingText}>Loading bookings...</Text>
@@ -420,11 +553,13 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: "#f0f0f0",
+    flexWrap: "wrap",
   },
   filterTab: {
     paddingVertical: 8,
     paddingHorizontal: 16,
     marginRight: 10,
+    marginBottom: 5,
     borderRadius: 20,
     backgroundColor: "#f5f5f5",
   },
@@ -681,5 +816,61 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
     color: "#fff",
+  },
+  // Debug styles
+  debugContainer: {
+    flex: 1,
+    padding: 20,
+    backgroundColor: "#f9f9f9",
+  },
+  debugTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+    marginBottom: 20,
+    textAlign: "center",
+  },
+  debugSection: {
+    backgroundColor: "#fff",
+    borderRadius: 8,
+    padding: 15,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: "#eee",
+  },
+  debugSectionTitle: {
+    fontSize: 16,
+    fontWeight: "bold",
+    marginBottom: 10,
+    color: "#333",
+    borderBottomWidth: 1,
+    borderBottomColor: "#eee",
+    paddingBottom: 5,
+  },
+  debugItem: {
+    fontSize: 14,
+    marginBottom: 5,
+    color: "#333",
+  },
+  debugActions: {
+    marginBottom: 20,
+  },
+  debugButton: {
+    backgroundColor: "#007AFF",
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  debugButtonText: {
+    color: "#fff",
+    fontWeight: "600",
+  },
+  debugCode: {
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+    fontSize: 12,
+    padding: 10,
+    backgroundColor: "#f5f5f5",
+    borderRadius: 4,
+    color: "#333",
   },
 })

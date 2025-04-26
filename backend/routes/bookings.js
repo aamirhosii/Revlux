@@ -247,4 +247,24 @@ router.delete(
   })
 )
 
+// Admin route to get all bookings
+router.get('/admin', authenticateToken, async (req, res) => {
+  try {
+    // Check if user is admin
+    if (!req.user.isAdmin) {
+      return res.status(403).json({ message: 'Access denied: Admin privileges required' });
+    }
+
+    // Find all bookings, most recent first
+    const bookings = await Booking.find()
+      .sort({ createdAt: -1 }) 
+      .populate('user', 'name email phoneNumber');
+    
+    return res.json(bookings);
+  } catch (error) {
+    console.error('Error fetching admin bookings:', error);
+    return res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
 module.exports = router
