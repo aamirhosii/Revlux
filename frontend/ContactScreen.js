@@ -7,7 +7,11 @@ import {
   StyleSheet,
   ScrollView,
   SafeAreaView,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
+import axios from 'axios';
+import { API_URL } from '../config'; // Adjust this path as needed
 
 export default function ContactScreen() {
   const [formData, setFormData] = useState({
@@ -18,12 +22,13 @@ export default function ContactScreen() {
     comments: '',
     service: '',
   });
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleInputChange = (field, value) => {
     setFormData({ ...formData, [field]: value });
   };
 
-  const handleSubmit = () => {
+  const validateForm = () => {
     if (
       !formData.firstName ||
       !formData.lastName ||
@@ -32,18 +37,74 @@ export default function ContactScreen() {
       !formData.comments ||
       !formData.service
     ) {
-      alert('Please fill in all required fields.');
-    } else {
-      alert('Your message has been submitted. We will get back to you shortly!');
-      setFormData({
-        firstName: '',
-        lastName: '',
-        email: '',
-        phone: '',
-        comments: '',
-        service: '',
-      });
+      Alert.alert('Missing Information', 'Please fill in all required fields.');
+      return false;
     }
+
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(formData.email)) {
+      Alert.alert('Invalid Email', 'Please enter a valid email address.');
+      return false;
+    }
+
+    return true;
+  };
+
+  const handleSubmit = async () => {
+    if (!validateForm()) return;
+
+    setIsSubmitting(true);
+    
+    try {
+      // Prepare data for backend
+      const contactData = {
+        name: `${formData.firstName} ${formData.lastName}`,
+        email: formData.email,
+        phone: formData.phone,
+        message: `Service Interested: ${formData.service}\n\nComments/Vehicle Info: ${formData.comments}`
+      };
+      
+      // Send data to backend
+      const response = await axios.post(`${API_URL}/contact`, contactData);
+      
+      // Clear form and show success message
+      Alert.alert(
+        'Message Sent!',
+        'Thank you for contacting us. We will get back to you shortly.',
+        [{ text: 'OK', onPress: () => resetForm() }]
+      );
+      
+    } catch (error) {
+      console.error('Contact form submission error:', error);
+      let errorMessage = 'Failed to send your message. Please try again later.';
+      
+      if (error.response && error.response.data && error.response.data.message) {
+        errorMessage = error.response.data.message;
+      }
+      
+      Alert.alert('Error', errorMessage);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const resetForm = () => {
+    setFormData({
+      firstName: '',
+      lastName: '',
+      email: '',
+      phone: '',
+      comments: '',
+      service: '',
+    });
+  };
+
+  const handlePhoneCall = () => {
+    // Implementation for phone call functionality
+    // You might want to add this functionality using Linking from react-native
+    Alert.alert('Call', 'Calling (416) 567 - 3082');
+    // Linking.openURL('tel:4165673082');
   };
 
   return (
@@ -56,7 +117,7 @@ export default function ContactScreen() {
           Experience the convenience and quality of Shelby Mobile Auto Detailing
           today!
         </Text>
-        <TouchableOpacity style={styles.callButton}>
+        <TouchableOpacity style={styles.callButton} onPress={handlePhoneCall}>
           <Text style={styles.callButtonText}>CALL (416) 567 - 3082</Text>
         </TouchableOpacity>
         <Text style={styles.formTitle}>OR, Tell Us How We Can Help</Text>
@@ -88,6 +149,7 @@ export default function ContactScreen() {
             value={formData.email}
             onChangeText={(value) => handleInputChange('email', value)}
             keyboardType="email-address"
+            autoCapitalize="none"
           />
         </View>
 
@@ -123,8 +185,16 @@ export default function ContactScreen() {
           />
         </View>
 
-        <TouchableOpacity style={styles.submitButton} onPress={handleSubmit}>
-          <Text style={styles.submitButtonText}>Submit</Text>
+        <TouchableOpacity 
+          style={styles.submitButton} 
+          onPress={handleSubmit}
+          disabled={isSubmitting}
+        >
+          {isSubmitting ? (
+            <ActivityIndicator color="#FFFFFF" size="small" />
+          ) : (
+            <Text style={styles.submitButtonText}>Submit</Text>
+          )}
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
@@ -208,6 +278,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
     marginTop: 10,
+    minHeight: 52, // To prevent layout shift when showing ActivityIndicator
   },
   submitButtonText: {
     color: '#FFF',

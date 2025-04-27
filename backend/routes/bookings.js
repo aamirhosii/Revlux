@@ -111,8 +111,18 @@ router.get(
   authenticateToken,
   admin,
   asyncHandler(async (req, res) => {
-    const allBookings = await Booking.find({}).sort({ createdAt: -1 })
-    res.json(allBookings)
+    try {
+      // Enhanced admin route to get all bookings with user details
+      const allBookings = await Booking.find({})
+        .sort({ createdAt: -1 })
+        .populate('user', 'name email phoneNumber');
+      
+      console.log(`Admin fetched ${allBookings.length} bookings`);
+      res.json(allBookings);
+    } catch (error) {
+      console.error('Error fetching admin bookings:', error);
+      res.status(500).json({ message: 'Failed to fetch bookings', error: error.message });
+    }
   })
 )
 
@@ -247,24 +257,67 @@ router.delete(
   })
 )
 
-// Admin route to get all bookings
-router.get('/admin', authenticateToken, async (req, res) => {
-  try {
-    // Check if user is admin
-    if (!req.user.isAdmin) {
-      return res.status(403).json({ message: 'Access denied: Admin privileges required' });
+/**
+ * @route   POST /api/bookings/admin-create
+ * @desc    Allow admins to create bookings on behalf of users
+ * @access  Private/Admin
+ */
+router.post(
+  '/admin-create',
+  authenticateToken,
+  admin,
+  asyncHandler(async (req, res) => {
+    const {
+      userId, // Optional - if provided, associate with existing user
+      customerName,
+      email,
+      phone,
+      date,
+      time,
+      address,
+      notes,
+      services,
+      addons,
+      total,
+      status = 'confirmed' // Admin-created bookings are confirmed by default
+    } = req.body;
+
+    // validation
+    if (
+      !customerName ||
+      !email ||
+      !phone ||
+      !date ||
+      !time ||
+      !address ||
+      !Array.isArray(services) ||
+      services.length === 0
+    ) {
+      res.status(400);
+      throw new Error('Please fill in all required fields');
     }
 
-    // Find all bookings, most recent first
-    const bookings = await Booking.find()
-      .sort({ createdAt: -1 }) 
-      .populate('user', 'name email phoneNumber');
-    
-    return res.json(bookings);
-  } catch (error) {
-    console.error('Error fetching admin bookings:', error);
-    return res.status(500).json({ message: 'Server error', error: error.message });
-  }
-});
+    const booking = new Booking({
+      user: userId || null, // Associate with user if provided, otherwise null
+      customerName,
+      email,
+      phone,
+      date,
+      time,
+      address,
+      notes: notes || '',
+      services,
+      addons: Array.isArray(addons) ? addons : [],
+      total,
+      status,
+      createdBy: req.user.userId, // Track which admin created this booking
+    });
 
-module.exports = router
+    const createdBooking = await booking.save();
+    console.log('Admin created a booking:', createdBooking._id);
+    
+    res.status(201).json(createdBooking);
+  })
+);
+
+module.exports = router;
