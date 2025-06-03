@@ -31,6 +31,7 @@ function authenticateToken(req, res, next) {
 }
 
 // SIGNUP
+// SIGNUP
 router.post('/signup', async (req, res) => {
   const { name, email, phoneNumber, password, referredByCode } = req.body;
   try {
@@ -66,7 +67,7 @@ router.post('/signup', async (req, res) => {
       password: hashedPassword,
       isVerified: false,
       signupVerificationOtp: otp,
-      signupVerificationExpires: Date.now() + 15 * 60 * 1000, // 15 minutes
+      signupVerificationExpires: Date.now() + 60 * 60 * 1000, // 60 minutes
     });
 
     // Generate a referral code
@@ -84,13 +85,53 @@ router.post('/signup', async (req, res) => {
       }
     }
 
+    // Save the user first
     await newUser.save();
+    console.log(`User created with ID ${newUser._id}, now ensuring OTP is saved...`);
+    
+    // Now explicitly update the OTP fields again to ensure they are saved
+    const otpUpdateResult = await User.findByIdAndUpdate(
+      newUser._id,
+      { 
+        signupVerificationOtp: otp,
+        signupVerificationExpires: Date.now() + 60 * 60 * 1000 
+      },
+      { new: true }
+    );
+    
+    console.log(`OTP update result: OTP=${otpUpdateResult.signupVerificationOtp}`);
+    
+    // Double check the OTP was saved
+    const savedUser = await User.findOne({ email });
+    console.log(`Final OTP check - Email: ${email}, OTP: ${savedUser.signupVerificationOtp || 'NOT SAVED!'}`);
+    
+    // If OTP still not saved properly, force direct update
+    if (!savedUser.signupVerificationOtp) {
+      console.log('CRITICAL: OTP not saved properly, attempting direct update...');
+      await User.updateOne(
+        { email },
+        { 
+          $set: { 
+            signupVerificationOtp: otp,
+            signupVerificationExpires: Date.now() + 60 * 60 * 1000 
+          }
+        }
+      );
+      
+      // Final verification
+      const finalCheck = await User.findOne({ email });
+      console.log(`Emergency update check - OTP now: ${finalCheck.signupVerificationOtp || 'STILL NOT SAVED!'}`);
+    }
     
     // Send verification email with OTP if an email was provided
     if (email) {
       try {
-        await emailService.sendSignupVerificationEmail(email, otp, name);
-        console.log(`OTP sent to ${email}: ${otp}`); // Debug log
+        const emailResult = await emailService.sendSignupVerificationEmail(email, otp, name);
+        if (emailResult.success) {
+          console.log(`Verification email sent successfully to ${email}. OTP: ${otp}`);
+        } else {
+          console.error(`Failed to send verification email to ${email}:`, emailResult.error);
+        }
       } catch (emailError) {
         console.error('Verification email failed:', emailError);
         // Continue with registration even if email fails
@@ -109,60 +150,7 @@ router.post('/signup', async (req, res) => {
   }
 });
 
-// Verify signup OTP
-router.post('/verify-signup', async (req, res) => {
-  try {
-    const { email, otp } = req.body;
-
-    // Find user with matching signup OTP and check if still valid
-    const user = await User.findOne({
-      email,
-      signupVerificationOtp: otp,
-      signupVerificationExpires: { $gt: Date.now() },
-    });
-    
-    if (!user) {
-      return res.status(400).json({ message: 'Invalid or expired verification code' });
-    }
-
-    // Mark user as verified
-    user.isVerified = true;
-    user.signupVerificationOtp = undefined;
-    user.signupVerificationExpires = undefined;
-    await user.save();
-    
-    // Send welcome email
-    try {
-      await emailService.sendWelcomeEmail({ name: user.name, email: user.email });
-    } catch (emailError) {
-      console.error('Welcome email failed:', emailError);
-      // Continue even if email fails
-    }
-
-    // Generate JWT for auto-login
-    const token = jwt.sign(
-      { userId: user._id, isAdmin: user.isAdmin },
-      JWT_SECRET,
-      { expiresIn: '1h' }
-    );
-
-    res.status(200).json({ 
-      message: 'Account verified successfully',
-      token,
-      user: {
-        name: user.name,
-        email: user.email,
-        phoneNumber: user.phoneNumber,
-        isAdmin: user.isAdmin || false,
-      }
-    });
-  } catch (error) {
-    console.error('Error in verify-signup:', error);
-    res.status(500).json({ message: 'Server error' });
-  }
-});
-
-// Resend verification OTP
+// Resend verification OTP with robust update
 router.post('/resend-verification', async (req, res) => {
   try {
     const { email } = req.body;
@@ -180,24 +168,142 @@ router.post('/resend-verification', async (req, res) => {
 
     // Generate a new 6-digit OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    console.log(`Attempting to save OTP ${otp} for user ${email} (ID: ${user._id})`);
 
-    // Store OTP and expiration (15 minutes)
+    // Try multiple database update methods to ensure the OTP is saved:
+    
+    // Method 1: Update through document model
     user.signupVerificationOtp = otp;
-    user.signupVerificationExpires = Date.now() + 15 * 60 * 1000; // 15 min
+    user.signupVerificationExpires = Date.now() + 60 * 60 * 1000; // 60 min
     await user.save();
+    
+    // Method 2: Direct update operation
+    await User.updateOne(
+      { _id: user._id },
+      { 
+        $set: { 
+          signupVerificationOtp: otp,
+          signupVerificationExpires: Date.now() + 60 * 60 * 1000
+        } 
+      }
+    );
+    
+    // Method 3: Verify and retry with findByIdAndUpdate if needed
+    const verifyUserSave = await User.findOne({ email });
+    if (!verifyUserSave.signupVerificationOtp) {
+      console.log('OTP still not saved, attempting findByIdAndUpdate...');
+      await User.findByIdAndUpdate(
+        user._id, 
+        {
+          signupVerificationOtp: otp,
+          signupVerificationExpires: Date.now() + 60 * 60 * 1000
+        },
+        { new: true }
+      );
+    }
+    
+    // Final verification
+    const finalCheck = await User.findOne({ email });
+    console.log(`Final verification - OTP in DB: ${finalCheck.signupVerificationOtp || 'FAILED TO SAVE'}`);
 
     // Send OTP via email
     try {
-      await emailService.sendSignupVerificationEmail(email, otp, user.name);
+      const emailResult = await emailService.sendSignupVerificationEmail(email, otp, user.name);
       console.log(`Verification email resent to ${email}. OTP:`, otp);
+      
+      if (!emailResult.success) {
+        console.error(`Failed to send verification email to ${email}:`, emailResult.error);
+      }
     } catch (emailError) {
       console.error('Verification email failed:', emailError);
-      return res.status(500).json({ message: 'Failed to send verification code email. Please try again.' });
+      // Continue - the OTP is saved even if email fails
     }
 
     res.status(200).json({ message: 'Verification code resent to your email' });
   } catch (error) {
     console.error('Error in resend-verification:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Verify signup OTP - single cleaned up implementation
+router.post('/verify-signup', async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+    
+    console.log('Verifying OTP:', otp, 'for email:', email);
+    
+    // Find the user
+    const userExists = await User.findOne({ email });
+    
+    if (!userExists) {
+      return res.status(400).json({ message: 'User not found with this email' });
+    }
+    
+    // Log diagnostic information
+    console.log('User found:', userExists.email);
+    console.log('Stored OTP:', userExists.signupVerificationOtp || 'No OTP found');
+    console.log('Provided OTP:', otp);
+    
+    // Check if OTP exists
+    if (!userExists.signupVerificationOtp) {
+      return res.status(400).json({ 
+        message: 'No verification code found for this account. Please request a new one.' 
+      });
+    }
+    
+    // Compare OTPs and expiry
+    const storedOtp = String(userExists.signupVerificationOtp);
+    const submittedOtp = String(otp);
+    const otpMatches = storedOtp === submittedOtp;
+    const otpNotExpired = userExists.signupVerificationExpires > Date.now();
+    
+    console.log('OTP matches?', otpMatches);
+    console.log('OTP not expired?', otpNotExpired);
+    
+    if (!otpMatches) {
+      return res.status(400).json({ message: 'The verification code is incorrect.' });
+    }
+    
+    if (!otpNotExpired) {
+      return res.status(400).json({ message: 'The verification code has expired. Please request a new one.' });
+    }
+
+    console.log('OTP verified successfully for:', email);
+    
+    // Mark user as verified
+    userExists.isVerified = true;
+    userExists.signupVerificationOtp = undefined;
+    userExists.signupVerificationExpires = undefined;
+    await userExists.save();
+    
+    // Send welcome email
+    try {
+      await emailService.sendWelcomeEmail({ name: userExists.name, email: userExists.email });
+    } catch (emailError) {
+      console.error('Welcome email failed:', emailError);
+      // Continue even if email fails
+    }
+
+    // Generate JWT for auto-login
+    const token = jwt.sign(
+      { userId: userExists._id, isAdmin: userExists.isAdmin },
+      JWT_SECRET,
+      { expiresIn: '1h' }
+    );
+
+    res.status(200).json({ 
+      message: 'Account verified successfully',
+      token,
+      user: {
+        name: userExists.name,
+        email: userExists.email,
+        phoneNumber: userExists.phoneNumber,
+        isAdmin: userExists.isAdmin || false,
+      }
+    });
+  } catch (error) {
+    console.error('Error in verify-signup:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });
@@ -224,9 +330,7 @@ router.post('/check-uniqueness', async (req, res) => {
   }
 });
 
-// Replace the current login route (around line 168) with this updated version:
-
-// LOGIN
+// LOGIN - FIXED to remove verification requirement
 router.post('/login', async (req, res) => {
   const { identifier, password } = req.body; // "identifier" can be email or phone
   try {
@@ -244,17 +348,14 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ message: 'Invalid credentials' });
     }
 
-    // Check if email is verified when login is with email
-    if (user.email === identifier && !user.isVerified) {
-      // DEVELOPMENT MODE: Auto-verify users on login attempt
-      console.log(`Auto-verifying user ${user.email} on login attempt`);
-      user.isVerified = true;
-      user.signupVerificationOtp = undefined;
-      user.signupVerificationExpires = undefined;
-      await user.save();
-      console.log(`User ${user.email} has been automatically verified`);
-      // Continue with normal login flow - no return here
-    }
+    // REMOVE THIS BLOCK - Delete these lines
+    // if (user.email === identifier && !user.isVerified) {
+    //   return res.status(401).json({ 
+    //     message: 'Your account needs verification. Please check your email for the verification code.',
+    //     requiresVerification: true,
+    //     email: user.email
+    //   });
+    // }
 
     // Compare password
     const validPassword = await bcrypt.compare(password, user.password);
@@ -266,7 +367,7 @@ router.post('/login', async (req, res) => {
     const token = jwt.sign(
       { userId: user._id, isAdmin: user.isAdmin },
       JWT_SECRET,
-      { expiresIn: '2h' } // Increased token expiry to 2 hours
+      { expiresIn: '2h' }
     );
 
     res.json({
@@ -277,7 +378,7 @@ router.post('/login', async (req, res) => {
         email: user.email,
         phoneNumber: user.phoneNumber,
         isAdmin: user.isAdmin || false,
-        isVerified: user.isVerified
+        isVerified: user.isVerified  // Still include this field for information
       },
     });
   } catch (err) {
@@ -380,15 +481,19 @@ router.post('/forgot-password', async (req, res) => {
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     console.log('Generated OTP:', otp); // Debug log
 
-    // Store OTP and expiration (15 minutes)
+    // Store OTP and expiration (60 minutes)
     user.resetPasswordOtp = otp;
-    user.resetPasswordExpires = Date.now() + 15 * 60 * 1000; // 15 min
+    user.resetPasswordExpires = Date.now() + 60 * 60 * 1000; // 60 min
     await user.save();
 
     // Send OTP via email
     try {
-      await emailService.sendPasswordResetEmail(email, otp);
-      console.log(`Password reset email sent to ${email}. OTP: ${otp}`);
+      const emailResult = await emailService.sendPasswordResetEmail(email, otp);
+      if (emailResult.success) {
+        console.log(`Password reset email sent to ${email}. OTP: ${otp}`);
+      } else {
+        console.error(`Failed to send password reset email to ${email}:`, emailResult.error);
+      }
     } catch (emailError) {
       console.error('Password reset email failed:', emailError);
       return res.status(500).json({ message: 'Failed to send reset code email. Please try again.' });
@@ -454,71 +559,6 @@ router.post('/reset-password', async (req, res) => {
   }
 });
 
-// Debug OTPs route - only if needed for development
-router.get('/debug-otps', async (req, res) => {
-  try {
-    // Only available in development
-    if (process.env.NODE_ENV === 'production') {
-      return res.status(404).send('Not found');
-    }
-    
-    // Find users with active OTPs
-    const usersWithOTPs = await User.find({
-      $or: [
-        { resetPasswordOtp: { $exists: true, $ne: null } },
-        { signupVerificationOtp: { $exists: true, $ne: null } }
-      ]
-    }).select('email name resetPasswordOtp resetPasswordExpires signupVerificationOtp signupVerificationExpires').sort({ updatedAt: -1 }).limit(10);
-    
-    res.send(`
-      <h1>Debug: Recent OTPs</h1>
-      <p>These are the most recent OTPs generated in the system (for testing only):</p>
-      <table border="1" cellpadding="10" style="border-collapse: collapse; width: 100%;">
-        <tr>
-          <th>Email</th>
-          <th>Name</th>
-          <th>Type</th>
-          <th>OTP</th>
-          <th>Expires</th>
-        </tr>
-        ${usersWithOTPs.map(user => {
-          let rows = [];
-          
-          if (user.resetPasswordOtp) {
-            rows.push(`
-              <tr>
-                <td>${user.email}</td>
-                <td>${user.name}</td>
-                <td><strong>Password Reset</strong></td>
-                <td style="font-size: 20px; font-weight: bold;">${user.resetPasswordOtp}</td>
-                <td>${new Date(user.resetPasswordExpires).toLocaleString()}</td>
-              </tr>
-            `);
-          }
-          
-          if (user.signupVerificationOtp) {
-            rows.push(`
-              <tr>
-                <td>${user.email}</td>
-                <td>${user.name}</td>
-                <td><strong>Signup Verification</strong></td>
-                <td style="font-size: 20px; font-weight: bold;">${user.signupVerificationOtp}</td>
-                <td>${new Date(user.signupVerificationExpires).toLocaleString()}</td>
-              </tr>
-            `);
-          }
-          
-          return rows.join('');
-        }).join('')}
-      </table>
-    `);
-    
-  } catch (error) {
-    console.error('Debug OTPs error:', error);
-    res.status(500).send(`Error: ${error.message}`);
-  }
-});
-
 // ---------------------------------------------
 // Email Testing Routes
 // ---------------------------------------------
@@ -543,6 +583,7 @@ router.get('/email-status', (req, res) => {
         <li><a href="/auth/test-contact">Test Contact Form Email</a></li>
         <li><a href="/auth/test-booking">Test Booking Confirmation Email</a></li>
         <li><a href="/auth/test-verification">Test Signup Verification Email</a></li>
+        <li><a href="/auth/test-sendgrid-direct">Test SendGrid API Directly</a></li>
       </ul>
     `);
   } catch (error) {
@@ -739,68 +780,45 @@ router.get('/test-booking', async (req, res) => {
   }
 });
 
-// Add this route for development/debugging
+// Direct SendGrid API test route
+const sgMail = require('@sendgrid/mail');
 
-// TEMPORARY: Bypass email verification for testing
-router.get('/verify-account/:email', async (req, res) => {
+router.get('/test-sendgrid-direct', async (req, res) => {
   try {
-    // Only allow in development environment
-    if (process.env.NODE_ENV === 'production') {
-      return res.status(404).send('Not found');
+    if (!process.env.SENDGRID_API_KEY) {
+      return res.status(500).send('SendGrid API key not configured');
     }
     
-    const { email } = req.params;
-    const user = await User.findOne({ email });
+    sgMail.setApiKey(process.env.SENDGRID_API_KEY);
     
-    if (!user) {
-      return res.status(404).send(`
-        <h1>User Not Found</h1>
-        <p>No user with email ${email} was found.</p>
-      `);
-    }
+    // Generate test email with timestamp to avoid duplicate filters
+    const timestamp = new Date().toISOString();
+    const msg = {
+      to: process.env.EMAIL_FROM, // Send to the from email as a test
+      from: process.env.EMAIL_FROM,
+      subject: `SendGrid Direct Test ${timestamp}`,
+      text: `This is a direct test of SendGrid API at ${timestamp}`,
+      html: `<strong>This is a direct test of SendGrid API at ${timestamp}</strong>`,
+    };
     
-    user.isVerified = true;
-    user.signupVerificationOtp = undefined;
-    user.signupVerificationExpires = undefined;
-    await user.save();
+    console.log('Attempting direct SendGrid send...');
+    await sgMail.send(msg);
+    console.log('Direct SendGrid send successful');
     
     res.send(`
-      <h1>Account Verified</h1>
-      <p>The account for ${email} has been marked as verified.</p>
-      <p>The user can now log in normally.</p>
+      <h1>Direct SendGrid Test</h1>
+      <p>Test email sent directly via SendGrid API to ${process.env.EMAIL_FROM}</p>
+      <p>Check your inbox or spam folder.</p>
+      <p><strong>Important:</strong> If this test works but regular emails don't, 
+      it confirms that your emailservices.js needs to switch to the SendGrid API method.</p>
     `);
   } catch (error) {
-    console.error('Verify account error:', error);
-    res.status(500).send(`Error: ${error.message}`);
-  }
-});
-
-// Add this temporary development route
-
-// TEMPORARY: Verify all accounts in the system
-router.get('/verify-all-accounts', async (req, res) => {
-  try {
-    // Only allow in development environment
-    if (process.env.NODE_ENV === 'production') {
-      return res.status(404).send('Not found');
-    }
-    
-    const result = await User.updateMany(
-      { isVerified: { $ne: true } },
-      { 
-        $set: { isVerified: true },
-        $unset: { signupVerificationOtp: "", signupVerificationExpires: "" }
-      }
-    );
-    
-    res.send(`
-      <h1>All Accounts Verified</h1>
-      <p>Modified ${result.modifiedCount} accounts to verified status.</p>
-      <p>All users should now be able to log in.</p>
+    console.error('SendGrid direct test error:', error);
+    res.status(500).send(`
+      <h1>SendGrid Direct Test Failed</h1>
+      <p>Error: ${error.toString()}</p>
+      <p>Response body: ${error.response?.body ? JSON.stringify(error.response.body) : 'No response body'}</p>
     `);
-  } catch (error) {
-    console.error('Verify all accounts error:', error);
-    res.status(500).send(`Error: ${error.message}`);
   }
 });
 

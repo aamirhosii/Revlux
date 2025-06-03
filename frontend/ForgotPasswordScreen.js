@@ -1,7 +1,6 @@
-"use client"
-
-import { useState } from "react"
-import axios from "axios"
+import { API_URL } from '../config';
+import { useState } from "react";
+import axios from "axios";
 import {
   View,
   Text,
@@ -14,7 +13,7 @@ import {
   Alert,
   ScrollView,
   ActivityIndicator,
-} from "react-native"
+} from "react-native";
 
 // Steps in the forgot password flow
 const STEPS = {
@@ -22,115 +21,118 @@ const STEPS = {
   OTP: "otp",
   NEW_PASSWORD: "new_password",
   SUCCESS: "success",
-}
+};
 
 export default function ForgotPasswordScreen({ navigation }) {
   // State for the current step in the flow
-  const [currentStep, setCurrentStep] = useState(STEPS.EMAIL)
+  const [currentStep, setCurrentStep] = useState(STEPS.EMAIL);
 
   // Form state
-  const [email, setEmail] = useState("")
-  const [otp, setOtp] = useState("")
-  const [newPassword, setNewPassword] = useState("")
-  const [confirmPassword, setConfirmPassword] = useState("")
+  const [email, setEmail] = useState("");
+  const [otp, setOtp] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
 
   // Loading state
-  const [isLoading, setIsLoading] = useState(false)
+  const [isLoading, setIsLoading] = useState(false);
 
   // Request OTP by submitting email
   const handleRequestOTP = async () => {
     // Basic validation
     if (!email) {
-      Alert.alert("Error", "Please enter your email address.")
-      return
+      Alert.alert("Error", "Please enter your email address.");
+      return;
     }
     if (!/\S+@\S+\.\S+/.test(email)) {
-      Alert.alert("Error", "Please enter a valid email address.")
-      return
+      Alert.alert("Error", "Please enter a valid email address.");
+      return;
     }
 
-    setIsLoading(true)
+    setIsLoading(true);
     try {
-      const response = await axios.post("http://localhost:5001/auth/forgot-password", {
+      // Using API_URL from config instead of hardcoded URL
+      const response = await axios.post(`${API_URL}/auth/forgot-password`, {
         email,
-      })
+      });
 
       if (response.status === 200) {
         Alert.alert(
           "OTP Sent",
-          "A verification code has been sent to your email. Please check your inbox and enter the code.",
+          "A verification code has been sent to your email. Please check your inbox and spam folder for the code.",
           [{ text: "OK", onPress: () => setCurrentStep(STEPS.OTP) }],
-        )
+        );
       }
     } catch (error) {
-      console.error("Error requesting OTP:", error)
-      Alert.alert("Error", error.response?.data?.message || "Failed to send verification code. Please try again.")
+      console.error("Error requesting OTP:", error);
+      Alert.alert("Error", error.response?.data?.message || "Failed to send verification code. Please try again.");
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   // Verify OTP
   const handleVerifyOTP = async () => {
     if (!otp) {
-      Alert.alert("Error", "Please enter the verification code.")
-      return
+      Alert.alert("Error", "Please enter the verification code.");
+      return;
     }
 
-    setIsLoading(true)
+    setIsLoading(true);
     try {
-      const response = await axios.post("http://localhost:5001/auth/verify-otp", {
+      // Using API_URL from config
+      const response = await axios.post(`${API_URL}/auth/verify-otp`, {
         email,
         otp,
-      })
+      });
 
       if (response.status === 200) {
-        setCurrentStep(STEPS.NEW_PASSWORD)
+        setCurrentStep(STEPS.NEW_PASSWORD);
       }
     } catch (error) {
-      console.error("Error verifying OTP:", error)
-      Alert.alert("Error", error.response?.data?.message || "Invalid verification code. Please try again.")
+      console.error("Error verifying OTP:", error);
+      Alert.alert("Error", error.response?.data?.message || "Invalid verification code. Please try again.");
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   // Reset password
   const handleResetPassword = async () => {
     // Validate passwords
     if (!newPassword || !confirmPassword) {
-      Alert.alert("Error", "Please enter and confirm your new password.")
-      return
+      Alert.alert("Error", "Please enter and confirm your new password.");
+      return;
     }
 
     if (newPassword.length < 8) {
-      Alert.alert("Error", "Password must be at least 8 characters long.")
-      return
+      Alert.alert("Error", "Password must be at least 8 characters long.");
+      return;
     }
 
     if (newPassword !== confirmPassword) {
-      Alert.alert("Error", "Passwords do not match.")
-      return
+      Alert.alert("Error", "Passwords do not match.");
+      return;
     }
 
-    setIsLoading(true)
+    setIsLoading(true);
     try {
-      const response = await axios.post("http://localhost:5001/auth/reset-password", {
+      // Using API_URL from config
+      const response = await axios.post(`${API_URL}/auth/reset-password`, {
         email,
         otp,
         newPassword,
-      })
+      });
 
       if (response.status === 200) {
-        setCurrentStep(STEPS.SUCCESS)
+        setCurrentStep(STEPS.SUCCESS);
       }
     } catch (error) {
-      console.error("Error resetting password:", error)
-      Alert.alert("Error", error.response?.data?.message || "Failed to reset password. Please try again.")
+      console.error("Error resetting password:", error);
+      Alert.alert("Error", error.response?.data?.message || "Failed to reset password. Please try again.");
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   // Render the email input step
   const renderEmailStep = () => (
@@ -166,7 +168,7 @@ export default function ForgotPasswordScreen({ navigation }) {
         <Text style={styles.linkButtonText}>Back to Login</Text>
       </TouchableOpacity>
     </View>
-  )
+  );
 
   // Render the OTP verification step
   const renderOTPStep = () => (
@@ -205,7 +207,7 @@ export default function ForgotPasswordScreen({ navigation }) {
         </TouchableOpacity>
       </View>
     </View>
-  )
+  );
 
   // Render the new password step
   const renderNewPasswordStep = () => (
@@ -243,7 +245,7 @@ export default function ForgotPasswordScreen({ navigation }) {
         )}
       </TouchableOpacity>
     </View>
-  )
+  );
 
   // Render the success step
   const renderSuccessStep = () => (
@@ -257,23 +259,23 @@ export default function ForgotPasswordScreen({ navigation }) {
         <Text style={styles.buttonText}>Back to Login</Text>
       </TouchableOpacity>
     </View>
-  )
+  );
 
   // Render the appropriate step based on current state
   const renderCurrentStep = () => {
     switch (currentStep) {
       case STEPS.EMAIL:
-        return renderEmailStep()
+        return renderEmailStep();
       case STEPS.OTP:
-        return renderOTPStep()
+        return renderOTPStep();
       case STEPS.NEW_PASSWORD:
-        return renderNewPasswordStep()
+        return renderNewPasswordStep();
       case STEPS.SUCCESS:
-        return renderSuccessStep()
+        return renderSuccessStep();
       default:
-        return renderEmailStep()
+        return renderEmailStep();
     }
-  }
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -281,7 +283,7 @@ export default function ForgotPasswordScreen({ navigation }) {
         <ScrollView contentContainerStyle={styles.scrollViewContent}>{renderCurrentStep()}</ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
-  )
+  );
 }
 
 const styles = StyleSheet.create({
@@ -355,4 +357,4 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginTop: 10,
   },
-})
+});

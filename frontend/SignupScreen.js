@@ -9,8 +9,10 @@ import {
   StyleSheet,
   ScrollView,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { API_URL } from '../config';
 
 export default function SignupScreen() {
   const [name, setName] = useState('');
@@ -18,31 +20,22 @@ export default function SignupScreen() {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const [step, setStep] = useState(1);
   const [otp, setOtp] = useState('');
-  const [generatedOtp, setGeneratedOtp] = useState('');
+  const [userId, setUserId] = useState(null);
 
   const navigation = useNavigation();
   const { signIn } = useContext(AuthContext);
-
-  // Generate a 6-digit OTP for demonstration
-  const generateOtp = () => {
-    const newOtp = Math.floor(100000 + Math.random() * 900000).toString();
-    setGeneratedOtp(newOtp);
-    console.log('Generated OTP:', newOtp);
-    return newOtp;
-  };
 
   // Check uniqueness (only email in this example)
   const checkUniqueness = async () => {
     try {
       const normalizedEmail = email.trim().toLowerCase();
 
-      console.log('Checking uniqueness with =>', { email: normalizedEmail });
-
       // POST /check-uniqueness on your backend
-      const response = await axios.post('http://localhost:5001/auth/check-uniqueness', {
+      const response = await axios.post(`${API_URL}/auth/check-uniqueness`, {
         email: normalizedEmail,
       });
 
@@ -50,7 +43,6 @@ export default function SignupScreen() {
         return true;
       }
     } catch (err) {
-      console.error('Uniqueness Check Error:', err.response?.data?.message || err.message);
       Alert.alert('Error', err.response?.data?.message || 'Error checking uniqueness');
       return false;
     }
@@ -75,18 +67,7 @@ export default function SignupScreen() {
     const isUnique = await checkUniqueness();
     if (!isUnique) return;
 
-    // Simulate sending an OTP (to email)
-    const newOtp = generateOtp();
-    console.log(`OTP sent to ${email}: ${newOtp}`);
-    setStep(2);
-  };
-
-  const handleOtpSubmit = async () => {
-    if (otp !== generatedOtp) {
-      Alert.alert('Error', 'Invalid OTP. Please try again.');
-      return;
-    }
-
+    setLoading(true);
     try {
       const data = {
         name: name.trim(),
@@ -95,25 +76,70 @@ export default function SignupScreen() {
         password,
       };
 
-      // 1) Sign up
-      const signupResponse = await axios.post('http://localhost:5001/auth/signup', data);
+      // Call the signup API which will generate and send OTP via email
+      const signupResponse = await axios.post(`${API_URL}/auth/signup`, data);
+      
       if (signupResponse.status === 201) {
-        // 2) Immediately log in
-        const loginResponse = await axios.post('http://localhost:5001/auth/login', {
-          identifier: email.trim().toLowerCase(),  // Since we use email as the identifier
-          password,
-        });
-
-        if (loginResponse.status === 200) {
-          const { token, user } = loginResponse.data;
-          await signIn(token, user);
-          Alert.alert('Success', `Welcome, ${user.name}!`);
-          navigation.navigate('Main');
-        }
+        // Server has generated and sent the OTP to user's email
+        setUserId(signupResponse.data.userId);
+        Alert.alert(
+          'Verification Required', 
+          'A verification code has been sent to your email. Please check your inbox and spam folder.\n\nIf you don\'t see it within a few minutes, check your spam folder or request a new code.',
+          [{ text: 'OK' }]
+        );
+        setStep(2);
       }
     } catch (error) {
-      console.error(error);
-      Alert.alert('Error', error.response?.data?.message || 'Something went wrong');
+      Alert.alert('Error', error.response?.data?.message || 'Something went wrong with registration');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleOtpSubmit = async () => {
+    if (!otp) {
+      Alert.alert('Error', 'Please enter the verification code');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // Verify the OTP with the backend
+      const verifyResponse = await axios.post(`${API_URL}/auth/verify-signup`, {
+        email: email.trim().toLowerCase(),
+        otp: otp
+      });
+
+      if (verifyResponse.status === 200) {
+        // OTP verified, user is now verified
+        const { token, user } = verifyResponse.data;
+        
+        // Sign in the user
+        await signIn(token, user);
+        Alert.alert('Success', `Welcome, ${user.name}! Your account has been verified.`);
+        navigation.navigate('Main');
+      }
+    } catch (error) {
+      Alert.alert('Error', error.response?.data?.message || 'Invalid verification code');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    setLoading(true);
+    try {
+      const response = await axios.post(`${API_URL}/auth/resend-verification`, {
+        email: email.trim().toLowerCase()
+      });
+
+      if (response.status === 200) {
+        Alert.alert('Success', 'A new verification code has been sent to your email. Please check your inbox and spam folder.');
+      }
+    } catch (error) {
+      Alert.alert('Error', error.response?.data?.message || 'Failed to resend verification code');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -159,21 +185,48 @@ export default function SignupScreen() {
             secureTextEntry
           />
 
-          <TouchableOpacity style={styles.button} onPress={handleInitialSubmit}>
-            <Text style={styles.buttonText}>Continue</Text>
+          <TouchableOpacity 
+            style={[styles.button, loading && styles.buttonDisabled]} 
+            onPress={handleInitialSubmit}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#FFFFFF" size="small" />
+            ) : (
+              <Text style={styles.buttonText}>Continue</Text>
+            )}
           </TouchableOpacity>
         </View>
       ) : (
         <View style={styles.form}>
+          <Text style={styles.verificationText}>
+            Enter the verification code sent to{'\n'}{email}
+          </Text>
           <TextInput
             style={styles.input}
-            placeholder="Enter the OTP sent to your Email"
+            placeholder="Enter Verification Code"
             value={otp}
             onChangeText={setOtp}
             keyboardType="number-pad"
           />
-          <TouchableOpacity style={styles.button} onPress={handleOtpSubmit}>
-            <Text style={styles.buttonText}>Verify & Create Account</Text>
+          <TouchableOpacity 
+            style={[styles.button, loading && styles.buttonDisabled]} 
+            onPress={handleOtpSubmit}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#FFFFFF" size="small" />
+            ) : (
+              <Text style={styles.buttonText}>Verify & Create Account</Text>
+            )}
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.resendLink} 
+            onPress={handleResendOtp}
+            disabled={loading}
+          >
+            <Text style={styles.resendText}>Didn't receive the code? Resend</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -219,6 +272,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 10,
   },
+  buttonDisabled: {
+    backgroundColor: '#666666',
+  },
   buttonText: {
     color: '#FFFFFF',
     fontSize: 16,
@@ -229,4 +285,17 @@ const styles = StyleSheet.create({
     textDecorationLine: 'underline',
     marginTop: 20,
   },
+  verificationText: {
+    textAlign: 'center',
+    marginBottom: 15,
+    color: '#333',
+  },
+  resendLink: {
+    marginTop: 15,
+    alignItems: 'center',
+  },
+  resendText: {
+    color: '#000000',
+    textDecorationLine: 'underline',
+  }
 });

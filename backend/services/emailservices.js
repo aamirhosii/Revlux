@@ -1,25 +1,20 @@
 // services/emailService.js
 const nodemailer = require('nodemailer');
+const sgMail = require('@sendgrid/mail');
+
+// If SendGrid API key is available, configure it
+if (process.env.SENDGRID_API_KEY) {
+  sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+  console.log('Using SendGrid API for email delivery');
+}
 
 /**
- * Create a Nodemailer transporter:
- *  - If SENDGRID_API_KEY is set, use SendGrid SMTP
- *  - Otherwise fall back to Gmail
+ * Create a Nodemailer transporter as fallback:
+ * - Only used if SendGrid API fails or is not available
  */
 const createTransporter = () => {
-  if (process.env.SENDGRID_API_KEY) {
-    console.log('Using SendGrid for email delivery');
-    return nodemailer.createTransport({
-      host: 'smtp.sendgrid.net',
-      port: 587,
-      secure: false, // use TLS
-      auth: {
-        user: 'apikey',                   // literally the string "apikey"
-        pass: process.env.SENDGRID_API_KEY
-      }
-    });
-  } else {
-    console.log('Using Gmail for email delivery');
+  if (process.env.EMAIL_FROM && process.env.EMAIL_PASSWORD) {
+    console.log('Using Gmail as fallback email provider');
     return nodemailer.createTransport({
       service: 'gmail',
       auth: {
@@ -28,9 +23,59 @@ const createTransporter = () => {
       }
     });
   }
+  
+  // For development/testing only - create ethereal test account
+  return null; // Will create an Ethereal account on demand if needed
 };
 
-const transporter = createTransporter();
+const fallbackTransporter = createTransporter();
+
+/**
+ * Send email using SendGrid API or fallback to nodemailer
+ */
+async function sendEmail(mailOptions) {
+  try {
+    // Try SendGrid API first if configured
+    if (process.env.SENDGRID_API_KEY) {
+      const msg = {
+        to: mailOptions.to,
+        from: mailOptions.from,
+        subject: mailOptions.subject,
+        html: mailOptions.html,
+        replyTo: mailOptions.replyTo
+      };
+      
+      await sgMail.send(msg);
+      return { success: true, messageId: `sg_${Date.now()}` };
+    }
+    
+    // Fallback to nodemailer/Gmail if SendGrid not configured
+    if (fallbackTransporter) {
+      const info = await fallbackTransporter.sendMail(mailOptions);
+      return { success: true, messageId: info.messageId };
+    }
+    
+    // For development only - create test account on demand
+    console.log('Creating Ethereal test account for email testing');
+    const testAccount = await nodemailer.createTestAccount();
+    const testTransporter = nodemailer.createTransport({
+      host: 'smtp.ethereal.email',
+      port: 587,
+      secure: false,
+      auth: {
+        user: testAccount.user,
+        pass: testAccount.pass,
+      },
+    });
+    
+    const info = await testTransporter.sendMail(mailOptions);
+    console.log('Test email URL: %s', nodemailer.getTestMessageUrl(info));
+    return { success: true, messageId: info.messageId, testUrl: nodemailer.getTestMessageUrl(info) };
+  } catch (error) {
+    console.error('Email sending failed:', error);
+    return { success: false, error: error.message };
+  }
+}
 
 /**
  * Send a welcome email to a newly registered user
@@ -38,7 +83,7 @@ const transporter = createTransporter();
 const sendWelcomeEmail = async (user) => {
   try {
     const mailOptions = {
-      from: `"Shelby Auto Detailing" <${process.env.EMAIL_FROM}>`,
+      from: `Shelby Auto Detailing <${process.env.EMAIL_FROM}>`,
       to: user.email,
       subject: 'Welcome to Shelby Auto Detailing!',
       html: `
@@ -52,9 +97,12 @@ const sendWelcomeEmail = async (user) => {
         </div>
       `
     };
-    const info = await transporter.sendMail(mailOptions);
-    console.log(`Welcome email sent to: ${user.email}`);
-    return { success: true, messageId: info.messageId };
+    
+    const result = await sendEmail(mailOptions);
+    if (result.success) {
+      console.log(`Welcome email sent to: ${user.email}`);
+    }
+    return result;
   } catch (error) {
     console.error('Error sending welcome email:', error);
     return { success: false, error: error.message };
@@ -67,7 +115,7 @@ const sendWelcomeEmail = async (user) => {
 const sendSignupVerificationEmail = async (email, otp, name) => {
   try {
     const mailOptions = {
-      from: `"Shelby Auto Detailing" <${process.env.EMAIL_FROM}>`,
+      from: `Shelby Auto Detailing <${process.env.EMAIL_FROM}>`,
       to: email,
       subject: 'Verify Your Shelby Auto Detailing Account',
       html: `
@@ -83,9 +131,12 @@ const sendSignupVerificationEmail = async (email, otp, name) => {
         </div>
       `
     };
-    const info = await transporter.sendMail(mailOptions);
-    console.log(`Signup verification email sent to: ${email}`);
-    return { success: true, messageId: info.messageId };
+    
+    const result = await sendEmail(mailOptions);
+    if (result.success) {
+      console.log(`Signup verification email sent to: ${email}`);
+    }
+    return result;
   } catch (error) {
     console.error('Error sending signup verification email:', error);
     return { success: false, error: error.message };
@@ -98,7 +149,7 @@ const sendSignupVerificationEmail = async (email, otp, name) => {
 const sendPasswordResetEmail = async (email, otp) => {
   try {
     const mailOptions = {
-      from: `"Shelby Auto Detailing" <${process.env.EMAIL_FROM}>`,
+      from: `Shelby Auto Detailing <${process.env.EMAIL_FROM}>`,
       to: email,
       subject: 'Your Shelby Auto Detailing Password Reset Code',
       html: `
@@ -113,9 +164,12 @@ const sendPasswordResetEmail = async (email, otp) => {
         </div>
       `
     };
-    const info = await transporter.sendMail(mailOptions);
-    console.log(`Password reset email sent to: ${email}`);
-    return { success: true, messageId: info.messageId };
+    
+    const result = await sendEmail(mailOptions);
+    if (result.success) {
+      console.log(`Password reset email sent to: ${email}`);
+    }
+    return result;
   } catch (error) {
     console.error('Error sending password reset email:', error);
     return { success: false, error: error.message };
@@ -128,9 +182,10 @@ const sendPasswordResetEmail = async (email, otp) => {
 const sendContactFormEmail = async (formData) => {
   try {
     const { name, email, message, phone } = formData;
+    
     // Email to Admin
     const adminMail = {
-      from: `"Shelby Auto Detailing" <${process.env.EMAIL_FROM}>`,
+      from: `Shelby Auto Detailing <${process.env.EMAIL_FROM}>`,
       to: process.env.ADMIN_EMAIL || process.env.EMAIL_FROM,
       replyTo: email,
       subject: 'New Contact Form Submission - Shelby Auto Detailing',
@@ -145,12 +200,15 @@ const sendContactFormEmail = async (formData) => {
         </div>
       `
     };
-    const infoAdmin = await transporter.sendMail(adminMail);
-    console.log(`Contact form submitted by: ${email}`);
+    
+    const adminResult = await sendEmail(adminMail);
+    if (adminResult.success) {
+      console.log(`Contact form notification sent to admin from: ${email}`);
+    }
 
     // Confirmation back to user
     const userConfirm = {
-      from: `"Shelby Auto Detailing" <${process.env.EMAIL_FROM}>`,
+      from: `Shelby Auto Detailing <${process.env.EMAIL_FROM}>`,
       to: email,
       subject: 'We Received Your Message - Shelby Auto Detailing',
       html: `
@@ -162,13 +220,16 @@ const sendContactFormEmail = async (formData) => {
         </div>
       `
     };
-    const infoUser = await transporter.sendMail(userConfirm);
-    console.log(`Contact confirmation sent to: ${email}`);
+    
+    const userResult = await sendEmail(userConfirm);
+    if (userResult.success) {
+      console.log(`Contact confirmation sent to: ${email}`);
+    }
 
     return {
-      success: true,
-      adminMessageId: infoAdmin.messageId,
-      userMessageId: infoUser.messageId
+      success: adminResult.success && userResult.success,
+      adminMessageId: adminResult.messageId,
+      userMessageId: userResult.messageId
     };
   } catch (error) {
     console.error('Error sending contact form email:', error);
@@ -182,7 +243,7 @@ const sendContactFormEmail = async (formData) => {
 const sendBookingConfirmationEmail = async (booking) => {
   try {
     const mailOptions = {
-      from: `"Shelby Auto Detailing" <${process.env.EMAIL_FROM}>`,
+      from: `Shelby Auto Detailing <${process.env.EMAIL_FROM}>`,
       to: booking.email,
       subject: 'Your Shelby Auto Detailing Booking Confirmation',
       html: `
@@ -209,9 +270,12 @@ const sendBookingConfirmationEmail = async (booking) => {
         </div>
       `
     };
-    const info = await transporter.sendMail(mailOptions);
-    console.log(`Booking confirmation email sent to: ${booking.email}`);
-    return { success: true, messageId: info.messageId };
+    
+    const result = await sendEmail(mailOptions);
+    if (result.success) {
+      console.log(`Booking confirmation email sent to: ${booking.email}`);
+    }
+    return result;
   } catch (error) {
     console.error('Error sending booking confirmation email:', error);
     return { success: false, error: error.message };
