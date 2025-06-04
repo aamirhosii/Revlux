@@ -76,7 +76,7 @@ router.get("/:id", authenticateToken, requireAdmin, async (req, res) => {
 // Update a user (admin only)
 router.put("/:id", authenticateToken, requireAdmin, async (req, res) => {
   try {
-    const { name, email, phoneNumber, isAdmin, carInfo, homeAddress, referralCredits } = req.body
+    const { name, email, phoneNumber, isAdmin, carInfo, homeAddress, referralCredits, role } = req.body
 
     // Create update object with only the fields that are provided
     const updateData = {}
@@ -87,6 +87,12 @@ router.put("/:id", authenticateToken, requireAdmin, async (req, res) => {
     if (carInfo !== undefined) updateData.carInfo = carInfo
     if (homeAddress !== undefined) updateData.homeAddress = homeAddress
     if (referralCredits !== undefined) updateData.referralCredits = referralCredits
+    
+    // Handle role updates - also synchronize with isEmployee for backward compatibility
+    if (role !== undefined) {
+      updateData.role = role
+      updateData.isEmployee = (role === 'employee')
+    }
 
     // Find and update the user
     const updatedUser = await User.findByIdAndUpdate(req.params.id, updateData, { new: true }).select("-password")

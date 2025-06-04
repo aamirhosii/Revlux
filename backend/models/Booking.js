@@ -1,3 +1,4 @@
+// backend/models/Bookings.js
 const mongoose = require("mongoose")
 
 const BookingSchema = new mongoose.Schema({
@@ -50,16 +51,25 @@ const BookingSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ["pending", "confirmed", "rejected"],
+    enum: ["pending", "confirmed", "rejected", "completed"], // Added 'completed' status
     default: "pending",
   },
   rejectionReason: {
     type: String,
   },
+  // New field for assigning employees
+  assignedEmployees: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }],
   createdAt: {
     type: Date,
     default: Date.now,
   },
+  // You might want to add a field for job completion notes by employees
+  employeeCompletionNotes: {
+    type: String,
+  }
 })
 
 module.exports = mongoose.model("Booking", BookingSchema)

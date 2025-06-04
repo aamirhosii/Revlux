@@ -2,8 +2,10 @@
 const express = require('express')
 const asyncHandler = require('express-async-handler')
 const Booking = require('../models/Booking')
-const { authenticateToken } = require('./auth')
+const User = require('../models/User') // Added User model for employee validation
+const { authenticateToken, isAdmin, isEmployee } = require('./auth') // Added isEmployee
 const { sendNotification } = require('../utils/notifications')
+const { sendEmployeeAssignedEmail, sendBookingConfirmationEmail } = require('../services/emailservices')
 
 const router = express.Router()
 
@@ -112,10 +114,11 @@ router.get(
   admin,
   asyncHandler(async (req, res) => {
     try {
-      // Enhanced admin route to get all bookings with user details
+      // Enhanced admin route to get all bookings with user and employee details
       const allBookings = await Booking.find({})
         .sort({ createdAt: -1 })
-        .populate('user', 'name email phoneNumber');
+        .populate('user', 'name email phoneNumber')
+        .populate('assignedEmployees', 'name email'); // Added employee population
       
       console.log(`Admin fetched ${allBookings.length} bookings`);
       res.json(allBookings);
@@ -136,6 +139,7 @@ router.get(
   authenticateToken,
   asyncHandler(async (req, res) => {
     const booking = await Booking.findById(req.params.id)
+      .populate('assignedEmployees', 'name email') // Add employee details
     
     if (!booking) {
       res.status(404)
@@ -143,7 +147,7 @@ router.get(
     }
     
     // Users can only see their own bookings (admins can see all)
-    if (booking.user.toString() !== req.user.userId.toString() && !req.user.isAdmin) {
+    if (booking.user && booking.user.toString() !== req.user.userId.toString() && !req.user.isAdmin) {
       res.status(401)
       throw new Error('Not authorized')
     }
@@ -175,8 +179,15 @@ router.put(
     }
 
     booking.status = status
-    if (status === 'rejected' && rejectionReason) {
-      booking.rejectionReason = rejectionReason
+    if (status === 'rejected') {
+      if (rejectionReason) {
+        booking.rejectionReason = rejectionReason
+      }
+      // Clear assigned employees if booking is rejected
+      booking.assignedEmployees = []
+    } else {
+      // Clear rejection reason if status is not rejected
+      booking.rejectionReason = undefined
     }
 
     const updatedBooking = await booking.save()
@@ -188,13 +199,18 @@ router.put(
       if (status === 'confirmed') {
         title = "Booking Confirmed!"
         body = `Your booking for ${booking.date} at ${booking.time} has been confirmed.`
+        
+        // Send booking confirmation email when status changes to confirmed
+        if (booking.email) {
+          await sendBookingConfirmationEmail(booking);
+        }
       } else if (status === 'rejected') {
         title = "Booking Update"
         body = `Your booking has been declined. Reason: ${rejectionReason || 'No reason provided'}`
       }
       
       // Only send if we have a title (meaning status is confirmed or rejected)
-      if (title) {
+      if (title && booking.user) {
         await sendNotification({
           title,
           body,
@@ -207,6 +223,119 @@ router.put(
     }
     
     res.json(updatedBooking)
+  })
+)
+
+/**
+ * @route   PUT /api/bookings/:id/assign-employees
+ * @desc    Assign employees to a booking
+ * @access  Private/Admin
+ */
+router.put(
+  '/:id/assign-employees',
+  authenticateToken,
+  admin,
+  asyncHandler(async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { employeeIds } = req.body; // Expecting an array of employee User ObjectIds
+
+      if (!Array.isArray(employeeIds)) {
+        return res.status(400).json({ message: "employeeIds must be an array." });
+      }
+
+      // Validate if employeeIds are actual employees
+      const employees = await User.find({ _id: { $in: employeeIds }, isEmployee: true });
+      if (employees.length !== employeeIds.length) {
+        return res.status(400).json({ message: "One or more provided IDs are not valid employees." });
+      }
+
+      const booking = await Booking.findById(id);
+      if (!booking) {
+        return res.status(404).json({ message: "Booking not found." });
+      }
+      
+      if (booking.status !== 'confirmed') {
+        return res.status(400).json({ message: "Booking must be confirmed before assigning employees." });
+      }
+
+      // Store previous assignments to determine new assignments
+      const previousAssignedEmployees = booking.assignedEmployees 
+        ? booking.assignedEmployees.map(id => id.toString()) 
+        : [];
+
+      booking.assignedEmployees = employeeIds;
+      await booking.save();
+      
+      // Populate assignedEmployees for the response
+      const updatedBooking = await Booking.findById(id)
+                                       .populate('user', 'name email')
+                                       .populate('assignedEmployees', 'name email');
+
+      // Find newly assigned employees (those who weren't previously assigned)
+      const newlyAssignedEmployees = employees.filter(
+        emp => !previousAssignedEmployees.includes(emp._id.toString())
+      );
+
+      // Notify assigned employees
+      for (const employee of newlyAssignedEmployees) {
+        // Send email notification
+        if (employee.email) {
+          try {
+            await sendEmployeeAssignedEmail(employee, booking);
+            console.log(`Assignment email sent to: ${employee.email} for booking ${booking._id}`);
+          } catch (emailError) {
+            console.error(`Failed to send email to employee ${employee._id}:`, emailError);
+            // Continue despite email failure
+          }
+        }
+
+        // Send push notification if available
+        if (employee.expoPushToken) {
+          try {
+            await sendNotification({
+              title: "New Job Assignment",
+              body: `You've been assigned to a job on ${booking.date} at ${booking.time}`,
+              data: { bookingId: booking._id.toString() }
+            }, [employee._id.toString()]);
+          } catch (notifyError) {
+            console.error(`Failed to send notification to employee ${employee._id}:`, notifyError);
+            // Continue despite notification failure
+          }
+        }
+      }
+
+      res.status(200).json({ 
+        message: "Employees assigned successfully.", 
+        booking: updatedBooking 
+      });
+    } catch (error) {
+      console.error("Error assigning employees:", error);
+      res.status(500).json({ message: "Server error assigning employees." });
+    }
+  })
+)
+
+/**
+ * @route   GET /api/bookings/list-employees-for-assignment
+ * @desc    Get list of all employees for assignment to bookings
+ * @access  Private/Admin
+ */
+router.get(
+  '/list-employees-for-assignment',
+  authenticateToken,
+  admin,
+  asyncHandler(async (req, res) => {
+    try {
+      const employees = await User.find({ isEmployee: true })
+                                .select('name email _id')
+                                .sort({ name: 1 });
+      
+      res.json(employees);
+    } catch (error) {
+      console.error("Error fetching employees:", error);
+      res.status(500).json({ message: "Server error fetching employees." });
+    }
   })
 )
 
@@ -227,7 +356,7 @@ router.delete(
     }
     
     // Users can only cancel their own bookings (admins can cancel any)
-    if (booking.user.toString() !== req.user.userId.toString() && !req.user.isAdmin) {
+    if (booking.user && booking.user.toString() !== req.user.userId.toString() && !req.user.isAdmin) {
       res.status(401)
       throw new Error('Not authorized')
     }
@@ -311,10 +440,20 @@ router.post(
       total,
       status,
       createdBy: req.user.userId, // Track which admin created this booking
+      assignedEmployees: [], // Initialize empty assignedEmployees array
     });
 
     const createdBooking = await booking.save();
     console.log('Admin created a booking:', createdBooking._id);
+    
+    // Send confirmation email for admin-created bookings
+    if (email && status === 'confirmed') {
+      try {
+        await sendBookingConfirmationEmail(createdBooking);
+      } catch (emailError) {
+        console.error("Failed to send booking confirmation email:", emailError);
+      }
+    }
     
     res.status(201).json(createdBooking);
   })

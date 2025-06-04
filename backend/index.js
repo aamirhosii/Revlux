@@ -22,6 +22,8 @@ const bookingRoutes = require('./routes/bookings');
 const availabilityRoutes = require('./routes/availability');
 const serviceAreasRoutes = require("./routes/service-areas");
 const userRoutes = require("./routes/users");
+// Add employee routes import
+const employeeRoutes = require('./routes/employeeRoutes');
 // Add this with your other requires
 const contactRoutes = require('./routes/contact');
 
@@ -38,6 +40,8 @@ app.use(express.urlencoded({ extended: true }));
 // Mount routers
 app.use('/auth', authRoutes.router);
 app.use('/api/bookings', bookingRoutes);
+// Add employee routes
+app.use('/api/employee', employeeRoutes);
 app.use('/availability', availabilityRoutes);
 app.use('/service-areas', serviceAreasRoutes);
 app.use('/users', userRoutes);

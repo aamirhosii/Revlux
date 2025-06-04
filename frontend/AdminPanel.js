@@ -22,6 +22,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage"
 import { Ionicons } from "@expo/vector-icons"
 import { API_URL } from "../config"
 
+
 // Minimum durations (in minutes) for each service
 const SERVICE_DURATIONS = {
   CORE: 90,
@@ -66,6 +67,9 @@ export default function AdminPanel() {
   const [startTime, setStartTime] = useState("")
   const [selectedService, setSelectedService] = useState("CORE")
   const [allAvailability, setAllAvailability] = useState([])
+  const isEmployee = (user) => {
+    return user && (user.role === "employee" || user.isEmployee === true);
+  };
 
   // User management state
   const [users, setUsers] = useState([])
@@ -79,6 +83,7 @@ export default function AdminPanel() {
     email: "",
     phoneNumber: "",
     isAdmin: false,
+    isEmployee: false,
     carInfo: "",
     homeAddress: "",
     referralCredits: 0,
@@ -94,6 +99,12 @@ export default function AdminPanel() {
   const [bookings, setBookings] = useState([])
   const [bookingFilter, setBookingFilter] = useState("pending") // pending, confirmed, all
   const [debugInfo, setDebugInfo] = useState({})
+
+  // Employee assignment state
+  const [assignEmployeeModalVisible, setAssignEmployeeModalVisible] = useState(false)
+  const [employeesList, setEmployeesList] = useState([])
+  const [selectedEmployee, setSelectedEmployee] = useState(null)
+  const [currentBookingId, setCurrentBookingId] = useState(null)
 
   // Active tab state
   const [activeTab, setActiveTab] = useState(TABS.BOOKINGS)
@@ -119,6 +130,25 @@ export default function AdminPanel() {
     }
   }
 
+  // Fetch employees
+  const fetchEmployees = async () => {
+    try {
+      const token = await AsyncStorage.getItem("token")
+      const response = await axios.get(`${API_URL}/users`, {
+        params: { role: "employee" },
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      // Filter users to only include employees
+      const employeeUsers = response.data.users.filter(user => 
+        user.role === "employee" || user.isEmployee === true
+      )
+      setEmployeesList(employeeUsers)
+    } catch (error) {
+      console.error("Error fetching employees:", error)
+      Alert.alert("Error", "Failed to fetch employees")
+    }
+  }
+
   // Fetch users with optional search query
   const fetchUsers = async (page = 1, search = searchQuery) => {
     setIsLoading(true)
@@ -140,74 +170,71 @@ export default function AdminPanel() {
   }
 
   // Fetch bookings
-  // Replace the fetchBookings function with this improved version
+  const fetchBookings = async () => {
+    setIsLoading(true);
+    try {
+      const token = await AsyncStorage.getItem("token");
+      if (!token) {
+        setDebugInfo(prev => ({
+          ...prev,
+          error: "No authentication token found",
+          status: "401"
+        }));
+        setBookings([]);
+        setIsLoading(false);
+        return;
+      }
 
-// Update the fetchBookings function to include the /api prefix:
-
-const fetchBookings = async () => {
-  setIsLoading(true);
-  try {
-    const token = await AsyncStorage.getItem("token");
-    if (!token) {
+      // Add /api prefix to match your backend route configuration
+      console.log("Fetching bookings from:", `${API_URL}/api/bookings`);
+      
+      const response = await axios.get(`${API_URL}/api/bookings`, {
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json" 
+        },
+      });
+      
+      console.log(`Found ${response.data.length} bookings from API`);
+      setBookings(response.data);
       setDebugInfo(prev => ({
         ...prev,
-        error: "No authentication token found",
-        status: "401"
+        bookingsFetched: true,
+        count: response.data.length,
+        lastFetch: new Date().toLocaleTimeString(),
+        error: null
       }));
+    } catch (error) {
+      console.error("Error fetching bookings:", error);
+      
+      let errorMessage = "Failed to fetch bookings";
+      let statusCode = error.response?.status || "Unknown";
+      
+      if (error.response) {
+        errorMessage = error.response.data?.message || errorMessage;
+        statusCode = error.response.status;
+      } else if (error.request) {
+        errorMessage = "No response from server";
+      } else {
+        errorMessage = error.message;
+      }
+      
+      setDebugInfo(prev => ({
+        ...prev,
+        error: errorMessage,
+        status: statusCode,
+        request: `${API_URL}/api/bookings`,
+        tokenExists: !!token
+      }));
+      
+      // Clear any existing bookings
       setBookings([]);
+    } finally {
       setIsLoading(false);
-      return;
+      setRefreshing(false);
     }
+  };
 
-    // Add /api prefix to match your backend route configuration
-    console.log("Fetching bookings from:", `${API_URL}/api/bookings`);
-    
-    const response = await axios.get(`${API_URL}/api/bookings`, {
-      headers: { 
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json" 
-      },
-    });
-    
-    console.log(`Found ${response.data.length} bookings from API`);
-    setBookings(response.data);
-    setDebugInfo(prev => ({
-      ...prev,
-      bookingsFetched: true,
-      count: response.data.length,
-      lastFetch: new Date().toLocaleTimeString(),
-      error: null
-    }));
-  } catch (error) {
-    console.error("Error fetching bookings:", error);
-    
-    let errorMessage = "Failed to fetch bookings";
-    let statusCode = error.response?.status || "Unknown";
-    
-    if (error.response) {
-      errorMessage = error.response.data?.message || errorMessage;
-      statusCode = error.response.status;
-    } else if (error.request) {
-      errorMessage = "No response from server";
-    } else {
-      errorMessage = error.message;
-    }
-    
-    setDebugInfo(prev => ({
-      ...prev,
-      error: errorMessage,
-      status: statusCode,
-      request: `${API_URL}/api/bookings`,
-      tokenExists: !!token
-    }));
-    
-    // Clear any existing bookings
-    setBookings([]);
-  } finally {
-    setIsLoading(false);
-    setRefreshing(false);
-  }
-};
   // Handle search input change
   const handleSearch = (text) => {
     setSearchQuery(text)
@@ -241,6 +268,7 @@ const fetchBookings = async () => {
       email: user.email || "",
       phoneNumber: user.phoneNumber || "",
       isAdmin: user.isAdmin || false,
+      isEmployee: user.role === "employee" || false,
       carInfo: user.carInfo || "",
       homeAddress: user.homeAddress || "",
       referralCredits: user.referralCredits || 0,
@@ -252,10 +280,18 @@ const fetchBookings = async () => {
   const updateUser = async () => {
     try {
       const token = await AsyncStorage.getItem("token")
-      await axios.put(`http://localhost:5001/users/${selectedUser._id}`, userForm, {
+      
+      // Create update payload with role based on isEmployee value
+      const updatePayload = {
+        ...userForm,
+        role: userForm.isEmployee ? "employee" : "user"
+      }
+      
+      await axios.put(`${API_URL}/users/${selectedUser._id}`, updatePayload, {
         headers: { Authorization: `Bearer ${token}` },
       })
-      Alert.alert("Success", "User updated successfully")
+      
+      Alert.alert("Success", `User updated successfully${userForm.isEmployee ? " and assigned as Employee" : ""}`)
       setEditModalVisible(false)
       fetchUsers(pagination.page) // Refresh the user list
     } catch (error) {
@@ -264,92 +300,199 @@ const fetchBookings = async () => {
     }
   }
 
-  // Handle booking confirmation
-  // Update the confirmBooking function:
-
-const confirmBooking = (bookingId) => {
-  Alert.alert(
-    "Confirm Booking",
-    "Are you sure you want to confirm this booking?",
-    [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Confirm",
-        onPress: async () => {
-          try {
-            const token = await AsyncStorage.getItem("token");
-            await axios.put(
-              `${API_URL}/api/bookings/${bookingId}/status`, // Add /api prefix
-              { status: "confirmed" },
-              {
-                headers: {
-                  "Content-Type": "application/json",
-                  Authorization: `Bearer ${token}`,
-                },
-              }
-            );
-
-            // Update local state
-            setBookings((prevBookings) =>
-              prevBookings.map((booking) =>
-                booking._id === bookingId ? { ...booking, status: "confirmed" } : booking
-              )
-            );
-
-            Alert.alert("Success", "Booking confirmed successfully");
-            fetchBookings();
-          } catch (error) {
-            console.error("Error confirming booking:", error);
-            Alert.alert("Error", "Failed to confirm booking. Please try again.");
+  // Toggle employee status directly from the user list
+  const toggleEmployeeStatus = async (user) => {
+    const newRole = user.role === "employee" ? "user" : "employee";
+    const action = newRole === "employee" ? "assign as an employee" : "remove employee status from";
+    
+    Alert.alert(
+      `${newRole === "employee" ? "Assign" : "Remove"} Employee Status`,
+      `Are you sure you want to ${action} ${user.name}?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Confirm",
+          onPress: async () => {
+            try {
+              const token = await AsyncStorage.getItem("token");
+              await axios.put(
+                `${API_URL}/users/${user._id}`,
+                { role: newRole },
+                { headers: { Authorization: `Bearer ${token}` } }
+              );
+              
+              // Update local state to reflect changes immediately
+              setUsers(prevUsers => 
+                prevUsers.map(u => 
+                  u._id === user._id ? { ...u, role: newRole } : u
+                )
+              );
+              
+              Alert.alert(
+                "Success", 
+                `${user.name} has been ${newRole === "employee" ? "assigned as an employee" : "removed from employee role"}.`
+              );
+            } catch (error) {
+              console.error("Error updating employee status:", error);
+              Alert.alert(
+                "Error",
+                error.response?.data?.message || "Failed to update employee status"
+              );
+            }
           }
+        }
+      ]
+    );
+  };
+
+  // Handle booking confirmation - showing employee selection modal
+  const confirmBooking = (bookingId) => {
+    // Store the booking ID
+    setCurrentBookingId(bookingId);
+    
+    // Fetch employees for assignment
+    fetchEmployees();
+    
+    // Show the employee assignment modal
+    setAssignEmployeeModalVisible(true);
+  };
+
+   // Function to assign employee and confirm booking
+  const assignEmployeeAndConfirm = async () => {
+    if (!selectedEmployee) {
+      Alert.alert("Error", "Please select an employee to assign");
+      return;
+    }
+    
+    try {
+      setIsLoading(true);
+      const token = await AsyncStorage.getItem("token");
+      
+      // Create the payload with all necessary data
+      const assignPayload = { 
+        employeeId: selectedEmployee._id,
+        employeeName: selectedEmployee.name
+      };
+      
+      console.log(`Assigning employee to booking ${currentBookingId}:`, assignPayload);
+      
+      // First assign the employee to the booking
+      const assignResponse = await axios.put(
+        `${API_URL}/api/bookings/${currentBookingId}/assign`,
+        assignPayload,
+        {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      
+      console.log("Employee assignment response:", assignResponse.data);
+      
+      // Then update booking status to confirmed
+      const statusResponse = await axios.put(
+        `${API_URL}/api/bookings/${currentBookingId}/status`,
+        { status: "confirmed" },
+        {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      
+      console.log("Status update response:", statusResponse.data);
+  
+      // Update local state
+      setBookings((prevBookings) =>
+        prevBookings.map((booking) =>
+          booking._id === currentBookingId ? { 
+            ...booking, 
+            status: "confirmed",
+            assignedEmployee: {
+              id: selectedEmployee._id,
+              name: selectedEmployee.name
+            }
+          } : booking
+        )
+      );
+  
+      Alert.alert("Success", `Booking confirmed and assigned to ${selectedEmployee.name}`);
+      
+      // Close modal and reset selection
+      setAssignEmployeeModalVisible(false);
+      setSelectedEmployee(null);
+      setCurrentBookingId(null);
+      
+      // Refresh bookings list
+      fetchBookings();
+    } catch (error) {
+      console.error("Error confirming and assigning booking:", error);
+      
+      // Detailed error logging
+      if (error.response) {
+        console.error("Response error data:", error.response.data);
+        console.error("Response error status:", error.response.status);
+        
+        Alert.alert(
+          "Error", 
+          `Failed to assign employee: ${error.response.data?.message || error.response.statusText || 'Server error'}`
+        );
+      } else if (error.request) {
+        console.error("No response received:", error.request);
+        Alert.alert("Network Error", "No response received from server. Please check your connection and try again.");
+      } else {
+        console.error("Error message:", error.message);
+        Alert.alert("Error", `${error.message || "Failed to confirm booking and assign employee."}`);
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Reject booking
+  const rejectBooking = (bookingId) => {
+    Alert.alert(
+      "Reject Booking",
+      "Are you sure you want to reject this booking?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Reject",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const token = await AsyncStorage.getItem("token");
+              await axios.put(
+                `${API_URL}/api/bookings/${bookingId}/status`,
+                { status: "rejected" },
+                {
+                  headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${token}`,
+                  },
+                }
+              );
+
+              // Update local state
+              setBookings((prevBookings) =>
+                prevBookings.map((booking) =>
+                  booking._id === bookingId ? { ...booking, status: "rejected" } : booking
+                )
+              );
+
+              Alert.alert("Success", "Booking rejected successfully");
+              fetchBookings();
+            } catch (error) {
+              console.error("Error rejecting booking:", error);
+              Alert.alert("Error", "Failed to reject booking. Please try again.");
+            }
+          },
         },
-      },
-    ]
-  );
-};
-
-// Update the rejectBooking function:
-const rejectBooking = (bookingId) => {
-  Alert.alert(
-    "Reject Booking",
-    "Are you sure you want to reject this booking?",
-    [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Reject",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            const token = await AsyncStorage.getItem("token");
-            await axios.put(
-              `${API_URL}/api/bookings/${bookingId}/status`, // Add /api prefix
-              { status: "rejected" },
-              {
-                headers: {
-                  "Content-Type": "application/json",
-                  Authorization: `Bearer ${token}`,
-                },
-              }
-            );
-
-            // Update local state
-            setBookings((prevBookings) =>
-              prevBookings.map((booking) =>
-                booking._id === bookingId ? { ...booking, status: "rejected" } : booking
-              )
-            );
-
-            Alert.alert("Success", "Booking rejected successfully");
-            fetchBookings();
-          } catch (error) {
-            console.error("Error rejecting booking:", error);
-            Alert.alert("Error", "Failed to reject booking. Please try again.");
-          }
-        },
-      },
-    ]
-  );
-};
+      ]
+    );
+  };
 
   // This function auto-calculates the endTime based on startTime + serviceDuration
   const addTimeSlotToList = () => {
@@ -417,11 +560,18 @@ const rejectBooking = (bookingId) => {
     <TouchableOpacity style={styles.userCard} onPress={() => openEditModal(item)}>
       <View style={styles.userHeader}>
         <Text style={styles.userName}>{item.name}</Text>
-        {item.isAdmin && (
-          <View style={styles.adminBadge}>
-            <Text style={styles.adminBadgeText}>Admin</Text>
-          </View>
-        )}
+        <View style={styles.badgesContainer}>
+          {item.isAdmin && (
+            <View style={styles.adminBadge}>
+              <Text style={styles.adminBadgeText}>Admin</Text>
+            </View>
+          )}
+          {item.role === "employee" && (
+            <View style={styles.employeeBadge}>
+              <Text style={styles.adminBadgeText}>Employee</Text>
+            </View>
+          )}
+        </View>
       </View>
 
       <View style={styles.userDetail}>
@@ -445,6 +595,27 @@ const rejectBooking = (bookingId) => {
         <TouchableOpacity style={styles.userActionButton} onPress={() => openEditModal(item)}>
           <Ionicons name="create-outline" size={18} color="#000" />
           <Text style={styles.userActionText}>Edit</Text>
+        </TouchableOpacity>
+        
+        {/* Quick action button to toggle employee status */}
+        <TouchableOpacity 
+          style={[
+            styles.userActionButton, 
+            item.role === "employee" ? styles.employeeActionButton : styles.regularActionButton
+          ]} 
+          onPress={() => toggleEmployeeStatus(item)}
+        >
+          <Ionicons 
+            name={item.role === "employee" ? "person-remove-outline" : "person-add-outline"} 
+            size={18} 
+            color={item.role === "employee" ? "#fff" : "#000"} 
+          />
+          <Text style={[
+            styles.userActionText, 
+            item.role === "employee" ? styles.employeeActionText : {}
+          ]}>
+            {item.role === "employee" ? "Remove" : "Make Employee"}
+          </Text>
         </TouchableOpacity>
       </View>
     </TouchableOpacity>
@@ -492,6 +663,15 @@ const rejectBooking = (bookingId) => {
           <Ionicons name="location-outline" size={16} color="#666" />
           <Text style={styles.detailText}>{item.address}</Text>
         </View>
+
+        {item.assignedEmployee && (
+          <View style={styles.detailRow}>
+            <Ionicons name="person-outline" size={16} color="#666" />
+            <Text style={styles.detailText}>
+              Assigned to: {item.assignedEmployee.name}
+            </Text>
+          </View>
+        )}
       </View>
 
       <View style={styles.servicesContainer}>
@@ -532,7 +712,7 @@ const rejectBooking = (bookingId) => {
             style={[styles.actionButton, styles.confirmButton]} 
             onPress={() => confirmBooking(item._id)}
           >
-            <Text style={styles.confirmButtonText}>CONFIRM</Text>
+            <Text style={styles.confirmButtonText}>CONFIRM & ASSIGN</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -618,6 +798,19 @@ const rejectBooking = (bookingId) => {
               >
                 <Text style={userForm.isAdmin ? styles.toggleTextActive : styles.toggleText}>
                   {userForm.isAdmin ? "Admin" : "Regular User"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Added employee toggle */}
+            <View style={styles.switchContainer}>
+              <Text style={styles.formLabel}>Employee Status</Text>
+              <TouchableOpacity
+                style={[styles.toggleButton, userForm.isEmployee ? styles.toggleButtonActive : {}]}
+                onPress={() => setUserForm({ ...userForm, isEmployee: !userForm.isEmployee })}
+              >
+                <Text style={userForm.isEmployee ? styles.toggleTextActive : styles.toggleText}>
+                  {userForm.isEmployee ? "Employee" : "Regular User"}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -841,48 +1034,48 @@ const rejectBooking = (bookingId) => {
 
           {/* Bookings List */}
           {bookingFilter === "debug" ? (
-  <View style={styles.debugContainer}>
-    <Text style={styles.debugTitle}>API Debug Info</Text>
-    <Text style={styles.debugItem}>API URL: {API_URL}/api/bookings</Text>
-    <Text style={styles.debugItem}>Bookings Fetched: {String(debugInfo.bookingsFetched || false)}</Text>
-    <Text style={styles.debugItem}>Booking Count: {debugInfo.count || 0}</Text>
-    <Text style={styles.debugItem}>Last Fetch: {debugInfo.lastFetch || 'Never'}</Text>
-    <Text style={styles.debugItem}>Token Exists: {String(debugInfo.tokenExists || 'Unknown')}</Text>
-    
-    {debugInfo.message && (
-      <Text style={styles.debugItem}>Message: {debugInfo.message}</Text>
-    )}
-    
-    {debugInfo.error && (
-      <Text style={styles.debugItemError}>Error: {debugInfo.error}</Text>
-    )}
-    
-    <Text style={styles.debugItem}>Status Code: {debugInfo.status || 'N/A'}</Text>
-    
-    {debugInfo.fallbackSuccess && (
-      <Text style={styles.debugItemSuccess}>Using fallback endpoint successfully!</Text>
-    )}
-    
-    <View style={styles.debugButtonContainer}>
-      <TouchableOpacity style={styles.debugButton} onPress={fetchBookings}>
-        <Text style={styles.debugButtonText}>Refresh Bookings</Text>
-      </TouchableOpacity>
-      
-      <TouchableOpacity 
-        style={[styles.debugButton, {backgroundColor: '#5856D6'}]} 
-        onPress={async () => {
-          const token = await AsyncStorage.getItem("token");
-          setDebugInfo(prev => ({
-            ...prev, 
-            tokenInfo: token ? `${token.substring(0, 10)}...` : 'No token'
-          }));
-        }}
-      >
-        <Text style={styles.debugButtonText}>Check Token</Text>
-      </TouchableOpacity>
-    </View>
-  </View>
-)  : isLoading && !refreshing ? (
+            <View style={styles.debugContainer}>
+              <Text style={styles.debugTitle}>API Debug Info</Text>
+              <Text style={styles.debugItem}>API URL: {API_URL}/api/bookings</Text>
+              <Text style={styles.debugItem}>Bookings Fetched: {String(debugInfo.bookingsFetched || false)}</Text>
+              <Text style={styles.debugItem}>Booking Count: {debugInfo.count || 0}</Text>
+              <Text style={styles.debugItem}>Last Fetch: {debugInfo.lastFetch || 'Never'}</Text>
+              <Text style={styles.debugItem}>Token Exists: {String(debugInfo.tokenExists || 'Unknown')}</Text>
+              
+              {debugInfo.message && (
+                <Text style={styles.debugItem}>Message: {debugInfo.message}</Text>
+              )}
+              
+              {debugInfo.error && (
+                <Text style={styles.debugItemError}>Error: {debugInfo.error}</Text>
+              )}
+              
+              <Text style={styles.debugItem}>Status Code: {debugInfo.status || 'N/A'}</Text>
+              
+              {debugInfo.fallbackSuccess && (
+                <Text style={styles.debugItemSuccess}>Using fallback endpoint successfully!</Text>
+              )}
+              
+              <View style={styles.debugButtonContainer}>
+                <TouchableOpacity style={styles.debugButton} onPress={fetchBookings}>
+                  <Text style={styles.debugButtonText}>Refresh Bookings</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={[styles.debugButton, {backgroundColor: '#5856D6'}]} 
+                  onPress={async () => {
+                    const token = await AsyncStorage.getItem("token");
+                    setDebugInfo(prev => ({
+                      ...prev, 
+                      tokenInfo: token ? `${token.substring(0, 10)}...` : 'No token'
+                    }));
+                  }}
+                >
+                  <Text style={styles.debugButtonText}>Check Token</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : isLoading && !refreshing ? (
             <ActivityIndicator size="large" color="#000" style={styles.loader} />
           ) : filteredBookings.length === 0 ? (
             <View style={styles.emptyContainer}>
@@ -951,6 +1144,70 @@ const rejectBooking = (bookingId) => {
 
       {/* Edit User Modal */}
       {renderEditUserModal()}
+
+      {/* Employee Assignment Modal */}
+      <Modal
+        visible={assignEmployeeModalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setAssignEmployeeModalVisible(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Assign Employee</Text>
+              <TouchableOpacity onPress={() => setAssignEmployeeModalVisible(false)}>
+                <Ionicons name="close-outline" size={24} color="#000" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.modalScrollContent}>
+              <Text style={styles.formLabel}>Select an employee to assign to this booking:</Text>
+              
+              {employeesList.length === 0 ? (
+                <Text style={styles.emptyListText}>No employees available</Text>
+              ) : (
+                employeesList.map((employee) => (
+                  <TouchableOpacity
+                    key={employee._id}
+                    style={[
+                      styles.employeeItem,
+                      selectedEmployee?._id === employee._id && styles.selectedEmployeeItem
+                    ]}
+                    onPress={() => setSelectedEmployee(employee)}
+                  >
+                    <Text style={styles.employeeName}>{employee.name}</Text>
+                    <Text style={styles.employeeEmail}>{employee.email}</Text>
+                    {selectedEmployee?._id === employee._id && (
+                      <Ionicons name="checkmark-circle" size={24} color="#000" style={styles.checkIcon} />
+                    )}
+                  </TouchableOpacity>
+                ))
+              )}
+
+              <View style={styles.modalActions}>
+                <TouchableOpacity 
+                  style={styles.cancelButton} 
+                  onPress={() => setAssignEmployeeModalVisible(false)}
+                >
+                  <Text style={styles.cancelButtonText}>Cancel</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity 
+                  style={[
+                    styles.saveButton, 
+                    !selectedEmployee && styles.disabledButton
+                  ]} 
+                  onPress={assignEmployeeAndConfirm}
+                  disabled={!selectedEmployee}
+                >
+                  <Text style={styles.saveButtonText}>Confirm & Assign</Text>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   )
 }
@@ -1171,6 +1428,10 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     color: "#000",
   },
+  badgesContainer: {
+    flexDirection: 'row',
+    gap: 5,
+  },
   adminBadge: {
     backgroundColor: "#000",
     paddingHorizontal: 8,
@@ -1181,6 +1442,12 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 12,
     fontWeight: "bold",
+  },
+  employeeBadge: {
+    backgroundColor: "#2196F3",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
   },
   userDetail: {
     flexDirection: "row",
@@ -1207,6 +1474,17 @@ const styles = StyleSheet.create({
   userActionText: {
     marginLeft: 5,
     fontWeight: "500",
+  },
+  employeeActionButton: {
+    backgroundColor: "#2196F3",
+    marginLeft: 8,
+  },
+  regularActionButton: {
+    backgroundColor: "#f0f0f0", 
+    marginLeft: 8,
+  },
+  employeeActionText: {
+    color: "#fff",
   },
   emptyListText: {
     textAlign: "center",
@@ -1498,17 +1776,45 @@ const styles = StyleSheet.create({
     color: 'white',
     fontWeight: '600',
   },
-
   debugItemSuccess: {
     fontSize: 14,
     color: '#009900',
     marginBottom: 8,
     fontWeight: '600',
   },
-
   debugButtonContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginTop: 15,
   },
+  // Employee assignment styles
+  employeeItem: {
+    backgroundColor: "#f5f5f5",
+    borderRadius: 8,
+    padding: 15,
+    marginBottom: 10,
+  },
+  selectedEmployeeItem: {
+    backgroundColor: "#e0e0e0",
+    borderColor: "#000",
+    borderWidth: 1,
+  },
+  employeeName: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#000",
+  },
+  employeeEmail: {
+    fontSize: 14,
+    color: "#666",
+    marginTop: 3,
+  },
+  checkIcon: {
+    position: "absolute",
+    right: 15,
+    top: 15,
+  },
+  disabledButton: {
+    backgroundColor: "#ccc",
+  }
 })

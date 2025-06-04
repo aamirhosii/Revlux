@@ -282,10 +282,55 @@ const sendBookingConfirmationEmail = async (booking) => {
   }
 };
 
+/**
+ * Send booking assignment notification to an employee
+ */
+const sendEmployeeAssignedEmail = async (employee, booking) => {
+  try {
+    const mailOptions = {
+      from: `Shelby Auto Detailing <${process.env.EMAIL_FROM}>`,
+      to: employee.email,
+      subject: 'New Job Assignment - Shelby Auto Detailing',
+      html: `
+        <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
+          <h2>New Job Assignment</h2>
+          <p>Hello ${employee.name},</p>
+          <p>You have been assigned to a new job with the following details:</p>
+          <div style="background:#f4f4f4;padding:15px;margin:20px 0;">
+            <p><strong>Customer:</strong> ${booking.customerName}</p>
+            <p><strong>Date:</strong> ${booking.date}</p>
+            <p><strong>Time:</strong> ${booking.time}</p>
+            <p><strong>Address:</strong> ${booking.address}</p>
+          </div>
+          <h3>Services:</h3>
+          <ul>
+            ${(booking.services || []).map(s => `<li>${s}</li>`).join('')}
+          </ul>
+          ${(booking.addons && booking.addons.length > 0)
+            ? `<h3>Add-ons:</h3><ul>${booking.addons.map(a => `<li>${a}</li>`).join('')}</ul>`
+            : ''}
+          <p>Please review the details in the app.</p>
+          <p>Best regards,<br>The Shelby Auto Detailing Team</p>
+        </div>
+      `
+    };
+    
+    const result = await sendEmail(mailOptions);
+    if (result.success) {
+      console.log(`Employee assignment email sent to: ${employee.email} for booking ${booking._id}`);
+    }
+    return result;
+  } catch (error) {
+    console.error('Error sending employee assignment email:', error);
+    return { success: false, error: error.message };
+  }
+};
+
 module.exports = {
   sendWelcomeEmail,
   sendSignupVerificationEmail,
   sendPasswordResetEmail,
   sendContactFormEmail,
-  sendBookingConfirmationEmail
+  sendBookingConfirmationEmail,
+  sendEmployeeAssignedEmail // Added the new function to exports
 };

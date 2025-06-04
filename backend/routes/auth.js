@@ -1,7 +1,7 @@
 // backend/routes/auth.js
 const express = require('express');
 const router = express.Router();
-const bcrypt = require('bcrypt'); // Using bcrypt (not bcryptjs) for consistency
+const bcrypt = require('bcryptjs'); // Using bcrypt (not bcryptjs) for consistency
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 // Use ONLY production emailService
@@ -22,15 +22,40 @@ function authenticateToken(req, res, next) {
 
   jwt.verify(token, JWT_SECRET, (err, userPayload) => {
     if (err) {
+      console.error("JWT Verification Error:", err.message);
+      if (err.name === 'TokenExpiredError') {
+        return res.status(401).json({ message: 'Token expired. Please log in again.' });
+      }
       return res.sendStatus(403); // Forbidden
     }
-    // userPayload: { userId, isAdmin, iat, exp }
+    // userPayload: { userId, isAdmin, isEmployee, iat, exp }
     req.user = userPayload;
     next();
   });
 }
 
-// SIGNUP
+/**
+ * Middleware: isAdmin
+ * Checks if the authenticated user is an admin.
+ */
+function isAdmin(req, res, next) {
+  if (!req.user || !req.user.isAdmin) {
+    return res.status(403).json({ message: 'Access denied. Admin role required.' });
+  }
+  next();
+}
+
+/**
+ * Middleware: isEmployee
+ * Checks if the authenticated user is an employee.
+ */
+function isEmployee(req, res, next) {
+  if (!req.user || !req.user.isEmployee) {
+    return res.status(403).json({ message: 'Access denied. Employee role required.' });
+  }
+  next();
+}
+
 // SIGNUP
 router.post('/signup', async (req, res) => {
   const { name, email, phoneNumber, password, referredByCode } = req.body;
@@ -66,6 +91,7 @@ router.post('/signup', async (req, res) => {
       phoneNumber: phoneNumber || null,
       password: hashedPassword,
       isVerified: false,
+      isEmployee: false, // Default to regular user, not employee
       signupVerificationOtp: otp,
       signupVerificationExpires: Date.now() + 60 * 60 * 1000, // 60 minutes
     });
@@ -226,7 +252,7 @@ router.post('/resend-verification', async (req, res) => {
   }
 });
 
-// Verify signup OTP - single cleaned up implementation
+// Verify signup OTP - Updated to include employee info
 router.post('/verify-signup', async (req, res) => {
   try {
     const { email, otp } = req.body;
@@ -287,7 +313,11 @@ router.post('/verify-signup', async (req, res) => {
 
     // Generate JWT for auto-login
     const token = jwt.sign(
-      { userId: userExists._id, isAdmin: userExists.isAdmin },
+      { 
+        userId: userExists._id, 
+        isAdmin: userExists.isAdmin, 
+        isEmployee: userExists.isEmployee 
+      },
       JWT_SECRET,
       { expiresIn: '1h' }
     );
@@ -300,6 +330,9 @@ router.post('/verify-signup', async (req, res) => {
         email: userExists.email,
         phoneNumber: userExists.phoneNumber,
         isAdmin: userExists.isAdmin || false,
+        isEmployee: userExists.isEmployee || false,
+        isVerified: userExists.isVerified,
+        isClockedIn: userExists.isClockedIn || false
       }
     });
   } catch (error) {
@@ -330,7 +363,7 @@ router.post('/check-uniqueness', async (req, res) => {
   }
 });
 
-// LOGIN - FIXED to remove verification requirement
+// LOGIN - UPDATED for employee status
 router.post('/login', async (req, res) => {
   const { identifier, password } = req.body; // "identifier" can be email or phone
   try {
@@ -345,29 +378,24 @@ router.post('/login', async (req, res) => {
       $or: [{ email: identifier }, { phoneNumber: identifier }],
     });
     if (!user) {
-      return res.status(400).json({ message: 'Invalid credentials' });
+      return res.status(400).json({ message: 'Invalid credentials (user not found)' });
     }
-
-    // REMOVE THIS BLOCK - Delete these lines
-    // if (user.email === identifier && !user.isVerified) {
-    //   return res.status(401).json({ 
-    //     message: 'Your account needs verification. Please check your email for the verification code.',
-    //     requiresVerification: true,
-    //     email: user.email
-    //   });
-    // }
 
     // Compare password
     const validPassword = await bcrypt.compare(password, user.password);
     if (!validPassword) {
-      return res.status(400).json({ message: 'Invalid credentials' });
+      return res.status(400).json({ message: 'Invalid credentials (password mismatch)' });
     }
 
     // Generate JWT
     const token = jwt.sign(
-      { userId: user._id, isAdmin: user.isAdmin },
+      { 
+        userId: user._id, 
+        isAdmin: user.isAdmin, 
+        isEmployee: user.isEmployee 
+      },
       JWT_SECRET,
-      { expiresIn: '2h' }
+      { expiresIn: '8h' } // Longer session for employees potentially
     );
 
     res.json({
@@ -378,7 +406,9 @@ router.post('/login', async (req, res) => {
         email: user.email,
         phoneNumber: user.phoneNumber,
         isAdmin: user.isAdmin || false,
-        isVerified: user.isVerified  // Still include this field for information
+        isEmployee: user.isEmployee || false,
+        isVerified: user.isVerified,
+        isClockedIn: user.isClockedIn || false // Include clock-in status
       },
     });
   } catch (err) {
@@ -387,14 +417,14 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// GET USER PROFILE
+// GET USER PROFILE - Updated to include employee info
 router.get('/profile', authenticateToken, async (req, res) => {
   try {
     const user = await User.findById(req.user.userId).select('-password -resetPasswordOtp -resetPasswordExpires -signupVerificationOtp -signupVerificationExpires');
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
-    res.json(user);
+    res.json(user); // Will include isEmployee, isClockedIn
   } catch (err) {
     console.error('Get Profile Error:', err);
     res.status(500).json({ message: 'Server error', error: err.message });
@@ -424,15 +454,23 @@ router.put('/profile', authenticateToken, async (req, res) => {
 });
 
 // ADMIN-ONLY: Get all users
-router.get('/allUsers', authenticateToken, async (req, res) => {
+router.get('/allUsers', authenticateToken, isAdmin, async (req, res) => {
   try {
-    if (!req.user?.isAdmin) {
-      return res.status(403).json({ message: 'Admin only' });
-    }
     const users = await User.find({}).select('-password -resetPasswordOtp -resetPasswordExpires -signupVerificationOtp -signupVerificationExpires');
     res.json(users);
   } catch (err) {
     console.error('allUsers Error:', err);
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// ADMIN-ONLY: Get all employees
+router.get('/all-employees', authenticateToken, isAdmin, async (req, res) => {
+  try {
+    const employees = await User.find({ isEmployee: true }).select('-password -resetPasswordOtp -resetPasswordExpires -signupVerificationOtp -signupVerificationExpires');
+    res.json(employees);
+  } catch (err) {
+    console.error('allEmployees Error:', err);
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
@@ -558,6 +596,7 @@ router.post('/reset-password', async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 });
+
 
 // ---------------------------------------------
 // Email Testing Routes
@@ -824,5 +863,7 @@ router.get('/test-sendgrid-direct', async (req, res) => {
 
 module.exports = {
   router,
-  authenticateToken
+  authenticateToken,
+  isAdmin,
+  isEmployee
 };

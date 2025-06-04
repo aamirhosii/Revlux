@@ -20,6 +20,7 @@ import { Ionicons } from "@expo/vector-icons"
 import { AuthContext } from "./AppNavigator"
 import axios from "axios"
 import { API_URL, BOOKING_STATUS } from "../config"
+import SelectMultiple from 'react-native-select-multiple' // For employee selection
 
 export default function AdminBookingsScreen({ navigation }) {
   const { user, token } = useContext(AuthContext)
@@ -30,6 +31,13 @@ export default function AdminBookingsScreen({ navigation }) {
   const [rejectionReason, setRejectionReason] = useState("")
   const [selectedBookingId, setSelectedBookingId] = useState(null)
   const [debugInfo, setDebugInfo] = useState({})
+  
+  // New state for employee assignment
+  const [assignEmployeeModal, setAssignEmployeeModal] = useState(false)
+  const [availableEmployees, setAvailableEmployees] = useState([])
+  const [selectedEmployees, setSelectedEmployees] = useState([])
+  const [loadingEmployees, setLoadingEmployees] = useState(false)
+  const [currentBookingForAssignment, setCurrentBookingForAssignment] = useState(null)
 
   // Check if user is admin, if not redirect to home
   useEffect(() => {
@@ -125,8 +133,33 @@ export default function AdminBookingsScreen({ navigation }) {
         filteredBookings = response.data.filter((booking) => booking.status === filter)
       }
       
+      // Process and populate employee names for display
+      const populatedBookings = await Promise.all(filteredBookings.map(async booking => {
+        if (booking.assignedEmployees && booking.assignedEmployees.length > 0) {
+          if (typeof booking.assignedEmployees[0] === 'string') {
+            // If these are just IDs, we need employee details
+            try {
+              const assignedEmpsDetails = await Promise.all(
+                booking.assignedEmployees.map(empId => 
+                  axios.get(`${API_URL}/users/${empId}`, { headers: { Authorization: `Bearer ${token}` } })
+                  .then(res => res.data.name)
+                  .catch(() => 'Unknown Employee')
+                )
+              );
+              return { ...booking, assignedEmployeeNames: assignedEmpsDetails };
+            } catch (e) {
+              return { ...booking, assignedEmployeeNames: ['Error fetching names'] };
+            }
+          } else if (typeof booking.assignedEmployees[0] === 'object') {
+            // If already populated objects
+            return { ...booking, assignedEmployeeNames: booking.assignedEmployees.map(emp => emp.name) };
+          }
+        }
+        return { ...booking, assignedEmployeeNames: [] };
+      }));
+      
       console.log(`Found ${filteredBookings.length} ${filter} bookings`)
-      setBookings(filteredBookings)
+      setBookings(populatedBookings)
     } catch (error) {
       console.error("Error fetching bookings:", error.response?.data || error.message)
       Alert.alert("Error", "Failed to load bookings. Please try again.")
@@ -134,6 +167,84 @@ export default function AdminBookingsScreen({ navigation }) {
       setLoading(false)
     }
   }
+
+  // Fetch available employees for assignment
+  const fetchAvailableEmployees = async () => {
+    setLoadingEmployees(true);
+    try {
+      // This endpoint should return all employees available for assignment
+      const response = await axios.get(`${API_URL}/bookings/list-employees-for-assignment`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setAvailableEmployees(response.data.map(emp => ({ 
+        label: `${emp.name} (${emp.email})`, 
+        value: emp._id 
+      })));
+    } catch (error) {
+      console.error("Error fetching employees:", error.response?.data || error.message);
+      Alert.alert("Error", "Failed to load employees for assignment.");
+      setAvailableEmployees([]);
+    } finally {
+      setLoadingEmployees(false);
+    }
+  };
+
+  // Open modal to assign employees
+  const openAssignEmployeeModal = (booking) => {
+    setCurrentBookingForAssignment(booking);
+    setSelectedBookingId(booking._id);
+    fetchAvailableEmployees();
+    
+    // Pre-select currently assigned employees
+    if (booking.assignedEmployees && booking.assignedEmployees.length > 0) {
+      // When the modal opens, create a pre-selected list based on existing assignments
+      setTimeout(() => {
+        const currentAssignedIds = booking.assignedEmployees.map(emp => 
+          typeof emp === 'object' ? emp._id : emp
+        );
+        
+        const preselected = availableEmployees.filter(emp => 
+          currentAssignedIds.includes(emp.value)
+        );
+        
+        setSelectedEmployees(preselected);
+      }, 500);
+    } else {
+      setSelectedEmployees([]);
+    }
+    
+    setAssignEmployeeModal(true);
+  };
+
+  // Handle employee assignment submission
+  const handleAssignEmployees = async () => {
+    if (!selectedBookingId || !currentBookingForAssignment) return;
+    setLoading(true);
+    const employeeIdsToAssign = selectedEmployees.map(emp => emp.value);
+
+    try {
+      await axios.put(
+        `${API_URL}/bookings/${selectedBookingId}/assign-employees`,
+        { employeeIds: employeeIdsToAssign },
+        { headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } }
+      );
+      Alert.alert("Success", "Employees assigned successfully.");
+      setAssignEmployeeModal(false);
+      fetchBookings(); // Refresh bookings to show updated assignments
+    } catch (error) {
+      console.error("Error assigning employees:", error.response?.data || error.message);
+      Alert.alert("Error", error.response?.data?.message || "Failed to assign employees.");
+    } finally {
+      setLoading(false);
+      setCurrentBookingForAssignment(null);
+      setSelectedEmployees([]);
+    }
+  };
+
+  // Handle selection changes in the employee multi-select
+  const onSelectionsChange = (selectedItems) => {
+    setSelectedEmployees(selectedItems);
+  };
 
   // Handle booking confirmation
   const confirmBooking = (bookingId) => {
@@ -168,7 +279,7 @@ export default function AdminBookingsScreen({ navigation }) {
                 ),
               )
 
-              Alert.alert("Success", "Booking confirmed successfully. The customer has been notified.")
+              Alert.alert("Success", "Booking confirmed successfully. You can now assign employees.")
               fetchBookings()
             } catch (error) {
               console.error("Error confirming booking:", error)
@@ -276,6 +387,18 @@ export default function AdminBookingsScreen({ navigation }) {
         </View>
       </View>
 
+      {/* Display Assigned Employees */}
+      <View style={styles.assignedEmployeesContainer}>
+        <Text style={styles.sectionTitle}>Assigned Employees:</Text>
+        {item.assignedEmployeeNames && item.assignedEmployeeNames.length > 0 ? (
+          item.assignedEmployeeNames.map((name, index) => (
+            <Text key={index} style={styles.assignedEmployeeText}>• {name}</Text>
+          ))
+        ) : (
+          <Text style={styles.noAssignedEmployeeText}>None</Text>
+        )}
+      </View>
+
       <View style={styles.servicesContainer}>
         <Text style={styles.sectionTitle}>Services:</Text>
         {item.services.map((service, index) => (
@@ -331,6 +454,18 @@ export default function AdminBookingsScreen({ navigation }) {
             <Text style={styles.confirmButtonText}>CONFIRM</Text>
           </TouchableOpacity>
         </View>
+      )}
+
+      {item.status === BOOKING_STATUS.CONFIRMED && (
+        <TouchableOpacity 
+          style={[styles.actionButton, styles.assignButton]} 
+          onPress={() => openAssignEmployeeModal(item)}
+        >
+          <Ionicons name="person-add-outline" size={16} color="#fff" style={{marginRight: 5}}/>
+          <Text style={styles.assignButtonText}>
+            {item.assignedEmployees && item.assignedEmployees.length > 0 ? "RE-ASSIGN" : "ASSIGN EMPLOYEES"}
+          </Text>
+        </TouchableOpacity>
       )}
     </View>
   )
@@ -518,6 +653,60 @@ export default function AdminBookingsScreen({ navigation }) {
                 </TouchableOpacity>
               </View>
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* New Assign Employee Modal */}
+      <Modal
+        visible={assignEmployeeModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setAssignEmployeeModal(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Assign Employees</Text>
+              <TouchableOpacity onPress={() => setAssignEmployeeModal(false)}>
+                <Ionicons name="close" size={24} color="#000" />
+              </TouchableOpacity>
+            </View>
+            
+            <ScrollView style={styles.modalBody}>
+              {loadingEmployees ? (
+                <ActivityIndicator size="large" color="#000" />
+              ) : availableEmployees.length === 0 ? (
+                <Text style={styles.emptyText}>No employees available for assignment.</Text>
+              ) : (
+                <SelectMultiple
+                  items={availableEmployees}
+                  selectedItems={selectedEmployees}
+                  onSelectionsChange={onSelectionsChange} 
+                />
+              )}
+              
+              <View style={styles.modalButtons}>
+                <TouchableOpacity style={styles.cancelButton} onPress={() => setAssignEmployeeModal(false)}>
+                  <Text style={styles.cancelButtonText}>CANCEL</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={[
+                    styles.submitButton, 
+                    (loading || loadingEmployees || selectedEmployees.length === 0) && styles.disabledButton
+                  ]} 
+                  onPress={handleAssignEmployees}
+                  disabled={loading || loadingEmployees || selectedEmployees.length === 0}
+                >
+                  {loading ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Text style={styles.submitButtonText}>ASSIGN</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -790,6 +979,7 @@ const styles = StyleSheet.create({
   modalButtons: {
     flexDirection: "row",
     justifyContent: "space-between",
+    marginTop: 20,
   },
   cancelButton: {
     flex: 1,
@@ -816,6 +1006,9 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
     color: "#fff",
+  },
+  disabledButton: {
+    backgroundColor: "#ccc",
   },
   // Debug styles
   debugContainer: {
@@ -873,4 +1066,34 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     color: "#333",
   },
+  // New styles for employee assignment
+  assignButton: {
+    backgroundColor: '#1E88E5',
+    marginTop: 10,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center'
+  },
+  assignButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  assignedEmployeesContainer: {
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#f0f0f0',
+  },
+  assignedEmployeeText: {
+    fontSize: 14,
+    color: '#444',
+    marginLeft: 5,
+    marginBottom: 3,
+  },
+  noAssignedEmployeeText: {
+    fontSize: 14,
+    color: '#777',
+    fontStyle: 'italic',
+  }
 })

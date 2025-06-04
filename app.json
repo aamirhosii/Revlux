@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "shelby_autodetailing_app",
-    "slug": "shelby_autodetailing_app",
+    "name": "Shelby Auto Detailing",
+    "slug": "shelby-autodetailing-app",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/logo.png",
-    "scheme": "myapp",
+    "scheme": "shelbyautodetailing",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
@@ -14,22 +14,25 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.yourcompany.shelbyautodetailing"
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "foregroundImage": "./assets/logo.png",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "package": "com.yourcompany.shelbyautodetailing"
     },
     "web": {
       "bundler": "metro",
       "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/logo.png"
     },
     "plugins": [
       "expo-router",
-      "expo-font"
+      "expo-font",
+      "./withAppTransportSecurity.js"
     ],
     "experiments": {
       "typedRoutes": true
