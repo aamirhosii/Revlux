@@ -169,7 +169,7 @@ export default function AdminPanel() {
     }
   }
 
-  // Fetch bookings
+   // Fetch bookings with improved logging and debugging
   const fetchBookings = async () => {
     setIsLoading(true);
     try {
@@ -184,11 +184,12 @@ export default function AdminPanel() {
         setIsLoading(false);
         return;
       }
-
-      // Add /api prefix to match your backend route configuration
-      console.log("Fetching bookings from:", `${API_URL}/api/bookings`);
+  
+      // IMPORTANT: Change to use the admin endpoint instead of regular endpoint
+      console.log("Fetching bookings from:", `${API_URL}/api/bookings/admin`);
+      console.log("Token starts with:", token.substring(0, 15) + "...");
       
-      const response = await axios.get(`${API_URL}/api/bookings`, {
+      const response = await axios.get(`${API_URL}/api/bookings/admin`, {
         headers: { 
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json" 
@@ -196,6 +197,23 @@ export default function AdminPanel() {
       });
       
       console.log(`Found ${response.data.length} bookings from API`);
+      
+      // Add detailed per-booking logging to diagnose issues
+      if (response.data.length > 0) {
+        console.log("First few bookings:");
+        response.data.slice(0, 3).forEach((booking, index) => {
+          console.log(`Booking ${index + 1}:`, {
+            id: booking._id,
+            customer: booking.customerName,
+            status: booking.status,
+            user: booking.user,
+            createdAt: booking.createdAt
+          });
+        });
+      } else {
+        console.log("No bookings returned from API");
+      }
+      
       setBookings(response.data);
       setDebugInfo(prev => ({
         ...prev,
@@ -211,10 +229,12 @@ export default function AdminPanel() {
       let statusCode = error.response?.status || "Unknown";
       
       if (error.response) {
+        console.error("Response data:", error.response.data);
         errorMessage = error.response.data?.message || errorMessage;
         statusCode = error.response.status;
       } else if (error.request) {
         errorMessage = "No response from server";
+        console.error("No response received");
       } else {
         errorMessage = error.message;
       }
@@ -223,7 +243,7 @@ export default function AdminPanel() {
         ...prev,
         error: errorMessage,
         status: statusCode,
-        request: `${API_URL}/api/bookings`,
+        request: `${API_URL}/api/bookings/admin`,
         tokenExists: !!token
       }));
       
@@ -357,100 +377,97 @@ export default function AdminPanel() {
     setAssignEmployeeModalVisible(true);
   };
 
-   // Function to assign employee and confirm booking
-  const assignEmployeeAndConfirm = async () => {
-    if (!selectedEmployee) {
-      Alert.alert("Error", "Please select an employee to assign");
-      return;
+ // Function to assign employee and confirm booking
+const assignEmployeeAndConfirm = async () => {
+  if (!selectedEmployee) {
+    Alert.alert("Error", "Please select an employee to assign");
+    return;
+  }
+  
+  try {
+    setIsLoading(true);
+    const token = await AsyncStorage.getItem("token");
+    
+    console.log("Current booking ID:", currentBookingId);
+    console.log("Selected employee:", selectedEmployee);
+    
+    // First update booking status to confirmed
+    console.log("Updating booking status...");
+    const statusUrl = `${API_URL}/api/bookings/${currentBookingId}/status`;
+    const statusResponse = await axios.put(
+      statusUrl,
+      { status: "confirmed" },
+      {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+    
+    console.log("Status update successful:", statusResponse.data);
+    
+    // Now try the employee assignment with the correct payload format for the assign-employees endpoint
+    console.log("Assigning employee...");
+    const assignUrl = `${API_URL}/api/bookings/${currentBookingId}/assign-employees`;
+    console.log("Assignment URL:", assignUrl);
+    
+    // The key change is here - providing employeeIds as an array
+    const assignResponse = await fetch(assignUrl, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        employeeIds: [selectedEmployee._id] // Send as an array
+      })
+    });
+    
+    console.log("Assignment response status:", assignResponse.status);
+    
+    if (!assignResponse.ok) {
+      const errorText = await assignResponse.text();
+      console.error("Assignment failed. Status:", assignResponse.status, "Response:", errorText);
+      throw new Error(`Assignment failed: ${assignResponse.status} ${errorText}`);
     }
     
-    try {
-      setIsLoading(true);
-      const token = await AsyncStorage.getItem("token");
-      
-      // Create the payload with all necessary data
-      const assignPayload = { 
-        employeeId: selectedEmployee._id,
-        employeeName: selectedEmployee.name
-      };
-      
-      console.log(`Assigning employee to booking ${currentBookingId}:`, assignPayload);
-      
-      // First assign the employee to the booking
-      const assignResponse = await axios.put(
-        `${API_URL}/api/bookings/${currentBookingId}/assign`,
-        assignPayload,
-        {
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-      
-      console.log("Employee assignment response:", assignResponse.data);
-      
-      // Then update booking status to confirmed
-      const statusResponse = await axios.put(
-        `${API_URL}/api/bookings/${currentBookingId}/status`,
-        { status: "confirmed" },
-        {
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-      
-      console.log("Status update response:", statusResponse.data);
-  
-      // Update local state
-      setBookings((prevBookings) =>
-        prevBookings.map((booking) =>
-          booking._id === currentBookingId ? { 
-            ...booking, 
-            status: "confirmed",
-            assignedEmployee: {
-              id: selectedEmployee._id,
-              name: selectedEmployee.name
-            }
-          } : booking
-        )
-      );
-  
-      Alert.alert("Success", `Booking confirmed and assigned to ${selectedEmployee.name}`);
-      
-      // Close modal and reset selection
-      setAssignEmployeeModalVisible(false);
-      setSelectedEmployee(null);
-      setCurrentBookingId(null);
-      
-      // Refresh bookings list
-      fetchBookings();
-    } catch (error) {
-      console.error("Error confirming and assigning booking:", error);
-      
-      // Detailed error logging
-      if (error.response) {
-        console.error("Response error data:", error.response.data);
-        console.error("Response error status:", error.response.status);
-        
-        Alert.alert(
-          "Error", 
-          `Failed to assign employee: ${error.response.data?.message || error.response.statusText || 'Server error'}`
-        );
-      } else if (error.request) {
-        console.error("No response received:", error.request);
-        Alert.alert("Network Error", "No response received from server. Please check your connection and try again.");
-      } else {
-        console.error("Error message:", error.message);
-        Alert.alert("Error", `${error.message || "Failed to confirm booking and assign employee."}`);
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    const assignData = await assignResponse.json();
+    console.log("Assignment successful:", assignData);
+    
+    // Update local state
+    setBookings((prevBookings) =>
+      prevBookings.map((booking) =>
+        booking._id === currentBookingId ? { 
+          ...booking, 
+          status: "confirmed",
+          assignedEmployees: [selectedEmployee._id]
+        } : booking
+      )
+    );
 
+    Alert.alert("Success", `Booking confirmed and assigned to ${selectedEmployee.name}`);
+    setAssignEmployeeModalVisible(false);
+    setSelectedEmployee(null);
+    setCurrentBookingId(null);
+    
+    // Refresh bookings
+    fetchBookings();
+  } catch (error) {
+    console.error("Error in assignEmployeeAndConfirm:", error);
+    
+    let errorMessage = "Failed to assign employee.";
+    if (error.response) {
+      errorMessage = `Server error: ${error.response.status} ${error.response.data?.message || ''}`;
+    } else if (error.message) {
+      errorMessage = error.message;
+    }
+    
+    Alert.alert("Error", errorMessage);
+  } finally {
+    setIsLoading(false);
+  }
+};
   // Reject booking
   const rejectBooking = (bookingId) => {
     Alert.alert(
@@ -977,10 +994,14 @@ export default function AdminPanel() {
   // Render the bookings management tab
   const renderBookingsTab = () => {
     // Filter bookings based on status
+      
     const filteredBookings = bookings.filter((booking) => {
-      if (bookingFilter === "all") return true
-      return booking.status === bookingFilter
-    })
+      if (bookingFilter === "all") return true;
+      
+      // Make case-insensitive comparison and handle null/undefined status
+      const bookingStatus = (booking.status || "").toLowerCase();
+      return bookingStatus === bookingFilter.toLowerCase();
+    });
 
     return (
       <>
@@ -1033,67 +1054,82 @@ export default function AdminPanel() {
           </View>
 
           {/* Bookings List */}
-          {bookingFilter === "debug" ? (
-            <View style={styles.debugContainer}>
-              <Text style={styles.debugTitle}>API Debug Info</Text>
-              <Text style={styles.debugItem}>API URL: {API_URL}/api/bookings</Text>
-              <Text style={styles.debugItem}>Bookings Fetched: {String(debugInfo.bookingsFetched || false)}</Text>
-              <Text style={styles.debugItem}>Booking Count: {debugInfo.count || 0}</Text>
-              <Text style={styles.debugItem}>Last Fetch: {debugInfo.lastFetch || 'Never'}</Text>
-              <Text style={styles.debugItem}>Token Exists: {String(debugInfo.tokenExists || 'Unknown')}</Text>
-              
-              {debugInfo.message && (
-                <Text style={styles.debugItem}>Message: {debugInfo.message}</Text>
-              )}
-              
-              {debugInfo.error && (
-                <Text style={styles.debugItemError}>Error: {debugInfo.error}</Text>
-              )}
-              
-              <Text style={styles.debugItem}>Status Code: {debugInfo.status || 'N/A'}</Text>
-              
-              {debugInfo.fallbackSuccess && (
-                <Text style={styles.debugItemSuccess}>Using fallback endpoint successfully!</Text>
-              )}
-              
-              <View style={styles.debugButtonContainer}>
-                <TouchableOpacity style={styles.debugButton} onPress={fetchBookings}>
-                  <Text style={styles.debugButtonText}>Refresh Bookings</Text>
-                </TouchableOpacity>
-                
-                <TouchableOpacity 
-                  style={[styles.debugButton, {backgroundColor: '#5856D6'}]} 
-                  onPress={async () => {
-                    const token = await AsyncStorage.getItem("token");
-                    setDebugInfo(prev => ({
-                      ...prev, 
-                      tokenInfo: token ? `${token.substring(0, 10)}...` : 'No token'
-                    }));
-                  }}
-                >
-                  <Text style={styles.debugButtonText}>Check Token</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          ) : isLoading && !refreshing ? (
-            <ActivityIndicator size="large" color="#000" style={styles.loader} />
-          ) : filteredBookings.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <Ionicons name="calendar-outline" size={64} color="#ccc" />
-              <Text style={styles.emptyText}>
-                No {bookingFilter !== 'all' ? bookingFilter : ''} bookings found
-              </Text>
-            </View>
-          ) : (
-            <FlatList
-              data={filteredBookings}
-              renderItem={renderBookingItem}
-              keyExtractor={(item) => item._id}
-              contentContainerStyle={styles.bookingList}
-              refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-              ListFooterComponent={<View style={{ height: 20 }} />}
-            />
-          )}
+                                        // Replace the existing debug container section in the renderBookingsTab function with this:
+                    {bookingFilter === "debug" ? (
+                      <View style={styles.debugContainer}>
+                        <Text style={styles.debugTitle}>API Debug Info</Text>
+                        <Text style={styles.debugItem}>API URL: {API_URL}/api/bookings</Text>
+                        <Text style={styles.debugItem}>Bookings Fetched: {String(debugInfo.bookingsFetched || false)}</Text>
+                        <Text style={styles.debugItem}>Booking Count: {debugInfo.count || 0}</Text>
+                        <Text style={styles.debugItem}>Last Fetch: {debugInfo.lastFetch || 'Never'}</Text>
+                        <Text style={styles.debugItem}>Token Exists: {String(debugInfo.tokenExists || 'Unknown')}</Text>
+                        
+                        {debugInfo.message && (
+                          <Text style={styles.debugItem}>Message: {debugInfo.message}</Text>
+                        )}
+                        
+                        {debugInfo.error && (
+                          <Text style={styles.debugItemError}>Error: {debugInfo.error}</Text>
+                        )}
+                        
+                        <Text style={styles.debugItem}>Status Code: {debugInfo.status || 'N/A'}</Text>
+                        
+                        {/* Add viewing all bookings */}
+                        {bookings.length > 0 && (
+                          <View style={styles.allBookingsContainer}>
+                            <Text style={styles.debugSubtitle}>All Retrieved Bookings ({bookings.length}):</Text>
+                            <ScrollView style={{ maxHeight: 300 }}>
+                              {bookings.map((booking, index) => (
+                                <View key={index} style={styles.debugBookingItem}>
+                                  <Text style={styles.debugBookingTitle}>
+                                    {index + 1}. {booking.customerName} - {booking.status}
+                                  </Text>
+                                  <Text>ID: {booking._id}</Text>
+                                  <Text>User: {booking.user || 'No user ID'}</Text>
+                                  <Text>Date: {booking.date}</Text>
+                                  <Text>Status: {booking.status}</Text>
+                                </View>
+                              ))}
+                            </ScrollView>
+                          </View>
+                        )}
+                        
+                        <View style={styles.debugButtonContainer}>
+                          <TouchableOpacity style={styles.debugButton} onPress={fetchBookings}>
+                            <Text style={styles.debugButtonText}>Refresh Bookings</Text>
+                          </TouchableOpacity>
+                          
+                          <TouchableOpacity 
+                            style={[styles.debugButton, {backgroundColor: '#5856D6'}]} 
+                            onPress={() => {
+                              // Force show all bookings regardless of filter
+                              setBookingFilter("all");
+                              fetchBookings();
+                            }}
+                          >
+                            <Text style={styles.debugButtonText}>Show All</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    ) : isLoading && !refreshing ? (
+                      <ActivityIndicator size="large" color="#000" style={styles.loader} />
+                    ) : filteredBookings.length === 0 ? (
+                      <View style={styles.emptyContainer}>
+                        <Ionicons name="calendar-outline" size={64} color="#ccc" />
+                        <Text style={styles.emptyText}>
+                          No {bookingFilter !== 'all' ? bookingFilter : ''} bookings found
+                        </Text>
+                      </View>
+                    ) : (
+                      <FlatList
+                        data={filteredBookings}
+                        renderItem={renderBookingItem}
+                        keyExtractor={(item) => item._id}
+                        contentContainerStyle={styles.bookingList}
+                        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+                        ListFooterComponent={<View style={{ height: 20 }} />}
+                      />
+                    )}
         </View>
       </>
     )
@@ -1814,7 +1850,31 @@ const styles = StyleSheet.create({
     right: 15,
     top: 15,
   },
+  // Add to your styles object
+allBookingsContainer: {
+  marginTop: 20,
+  marginBottom: 10,
+  borderTopWidth: 1,
+  borderTopColor: '#ddd',
+  paddingTop: 10,
+},
+debugSubtitle: {
+  fontSize: 16,
+  fontWeight: '600',
+  marginBottom: 10,
+},
+debugBookingItem: {
+  backgroundColor: '#f8f8f8',
+  padding: 10,
+  borderRadius: 5,
+  marginBottom: 8,
+},
+debugBookingTitle: {
+  fontWeight: '600',
+  marginBottom: 5,
+},
   disabledButton: {
     backgroundColor: "#ccc",
   }
+
 })

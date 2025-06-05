@@ -14,24 +14,33 @@ const JWT_SECRET = process.env.JWT_SECRET;
  * Reusable for bookings, availability, etc.
  */
 function authenticateToken(req, res, next) {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1]; 
-  if (!token) {
-    return res.sendStatus(401); // Unauthorized
+  const authHeader = req.header('Authorization');
+  if (!authHeader) {
+    return res.status(401).json({ message: 'Access denied. No token provided.' });
   }
-
-  jwt.verify(token, JWT_SECRET, (err, userPayload) => {
-    if (err) {
-      console.error("JWT Verification Error:", err.message);
-      if (err.name === 'TokenExpiredError') {
-        return res.status(401).json({ message: 'Token expired. Please log in again.' });
-      }
-      return res.sendStatus(403); // Forbidden
-    }
-    // userPayload: { userId, isAdmin, isEmployee, iat, exp }
-    req.user = userPayload;
+  
+  const token = authHeader.split(' ')[1];
+  if (!token) {
+    return res.status(401).json({ message: 'Access denied. Invalid token format.' });
+  }
+  
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    console.log('Decoded token:', decoded); // Add this for debugging
+    
+    // Make sure userId is being set here
+    req.user = {
+      userId: decoded.userId,
+      email: decoded.email,
+      isAdmin: decoded.isAdmin,
+      isEmployee: decoded.isEmployee
+    };
+    
     next();
-  });
+  } catch (error) {
+    console.error('Token verification error:', error);
+    res.status(403).json({ message: 'Invalid token.' });
+  }
 }
 
 /**
@@ -861,9 +870,27 @@ router.get('/test-sendgrid-direct', async (req, res) => {
   }
 });
 
+// Enhanced admin middleware with improved logging
+function admin(req, res, next) {
+  console.log('Admin check - User:', req.user ? {
+    userId: req.user.userId,
+    isAdmin: req.user.isAdmin,
+    isEmployee: req.user.isEmployee
+  } : 'No user in request');
+  
+  if (req.user && req.user.isAdmin) {
+    console.log('Admin check passed for user:', req.user.userId);
+    next();
+  } else {
+    console.log('Admin check failed for user:', req.user ? req.user.userId : 'unknown');
+    return res.status(403).json({ message: 'Access denied. Admin role required.' });
+  }
+}
+
 module.exports = {
   router,
   authenticateToken,
   isAdmin,
-  isEmployee
+  isEmployee,
+  admin
 };

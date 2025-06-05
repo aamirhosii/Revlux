@@ -474,6 +474,7 @@ const submitBooking = async () => {
     const selectedAddonsList = getSelectedAddonsList()
 
     // Create booking data
+       // Update your booking data creation (around line 477)
     const bookingData = {
       customerName: bookingForm.name,
       email: bookingForm.email,
@@ -485,6 +486,7 @@ const submitBooking = async () => {
       services: selectedServicesList,
       addons: selectedAddonsList,
       total: calculateTotal(),
+      status: 'pending' // Add this line to set the proper status
     }
 
     console.log("Making booking request to:", `${API_URL}/bookings`)

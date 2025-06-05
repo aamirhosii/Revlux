@@ -232,50 +232,33 @@ router.get('/shifts', async (req, res) => {
 
 /**
  * @route   GET /api/employee/assigned-jobs
- * @desc    Get jobs assigned to the employee
+ * @desc    Get bookings assigned to the logged-in employee
  * @access  Private - Employee only
  */
 router.get('/assigned-jobs', async (req, res) => {
   try {
     const employeeId = req.user.userId;
-    const { upcoming = 'true' } = req.query;
+    console.log(`[EMPLOYEE API] Fetching assigned jobs for employee: ${employeeId}`);
     
-    // Get current date at midnight for comparison
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    // Build query
-    const query = { 
+    // Find bookings where this employee is assigned
+    const bookings = await Booking.find({
       assignedEmployees: employeeId,
-      status: { $in: ['confirmed', 'pending_completion'] }
-    };
+      status: { $in: ['confirmed', 'pending', 'pending_completion'] }
+    })
+    .populate('user', 'name email phoneNumber')
+    .sort({ date: 1, time: 1 });
     
-    // Filter for upcoming bookings if specified
-    if (upcoming === 'true') {
-      // Convert date strings to Date objects for comparison
-      const bookings = await Booking.find(query)
-        .populate('user', 'name email phoneNumber')
-        .sort({ date: 1, time: 1 });
-      
-      // Filter out past bookings (need to handle date as string)
-      const upcomingBookings = bookings.filter(booking => {
-        const [year, month, day] = booking.date.split('-').map(Number);
-        const bookingDate = new Date(year, month - 1, day); // Month is 0-indexed in JS Date
-        return bookingDate >= today;
-      });
-      
-      return res.status(200).json(upcomingBookings);
-    } else {
-      // Return all bookings without filtering
-      const bookings = await Booking.find(query)
-        .populate('user', 'name email phoneNumber')
-        .sort({ date: -1, time: -1 });
-      
-      return res.status(200).json(bookings);
+    console.log(`[EMPLOYEE API] Found ${bookings.length} assigned bookings for employee ${employeeId}`);
+    
+    if (bookings.length > 0) {
+      console.log(`[EMPLOYEE API] First booking assigned: ${bookings[0]._id}`);
+      console.log(`[EMPLOYEE API] Assigned employees for first booking: ${bookings[0].assignedEmployees}`);
     }
+    
+    res.json(bookings);
   } catch (error) {
-    console.error("Error fetching assigned jobs:", error);
-    res.status(500).json({ message: "Server error fetching assigned jobs" });
+    console.error("Error fetching employee's assigned jobs:", error);
+    res.status(500).json({ message: "Error fetching assigned jobs", error: error.message });
   }
 });
 

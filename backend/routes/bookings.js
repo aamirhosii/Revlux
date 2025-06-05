@@ -1,23 +1,54 @@
 // routes/bookings.js
+// Add this to your imports at the top of the file
+const mongoose = require('mongoose');
 const express = require('express')
 const asyncHandler = require('express-async-handler')
 const Booking = require('../models/Booking')
-const User = require('../models/User') // Added User model for employee validation
-const { authenticateToken, isAdmin, isEmployee } = require('./auth') // Added isEmployee
+const User = require('../models/User')
+const { authenticateToken, isAdmin, isEmployee, admin } = require('./auth')
 const { sendNotification } = require('../utils/notifications')
 const { sendEmployeeAssignedEmail, sendBookingConfirmationEmail } = require('../services/emailservices')
 
 const router = express.Router()
 
-// Simple admin middleware
-const admin = (req, res, next) => {
-  if (req.user && req.user.isAdmin) {
-    next()
-  } else {
-    res.status(401)
-    throw new Error('Not authorized as admin')
-  }
-}
+// Add these test endpoints right after creating the router
+// Simple test endpoint - no auth required
+router.get('/test', (req, res) => {
+  console.log('Test endpoint reached!');
+  res.status(200).json({ 
+    message: 'Bookings API is working',
+    path: req.originalUrl,
+    method: req.method,
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Auth-required test endpoint
+router.get('/auth-test', authenticateToken, (req, res) => {
+  console.log('Auth test endpoint reached by user:', req.user ? req.user.userId : 'unknown');
+  res.status(200).json({ 
+    message: 'Auth is working',
+    user: req.user ? {
+      userId: req.user.userId,
+      isAdmin: req.user.isAdmin || false,
+      isEmployee: req.user.isEmployee || false
+    } : 'No user'
+  });
+});
+
+// Admin-required test endpoint
+router.get('/admin-test', authenticateToken, admin, (req, res) => {
+  console.log('Admin test endpoint reached by admin user:', req.user.userId);
+  res.status(200).json({ 
+    message: 'Admin auth is working',
+    user: {
+      userId: req.user.userId,
+      isAdmin: req.user.isAdmin
+    }
+  });
+});
+
+
 
 /**
  * @route   POST /api/bookings
@@ -130,6 +161,77 @@ router.get(
 )
 
 /**
+ * @route   GET /api/bookings/user
+ * @desc    Get all bookings for the logged-in user
+ * @access  Private
+ */
+router.get(
+  '/user',
+  authenticateToken,
+  asyncHandler(async (req, res) => {
+    try {
+      const userId = req.user.userId;
+      console.log(`Fetching bookings for user: ${userId}`);
+      
+      // First check if the user ID is a valid MongoDB ObjectId
+      if (!mongoose.Types.ObjectId.isValid(userId)) {
+        console.error(`Invalid user ID format: ${userId}`);
+        return res.status(400).json({ message: 'Invalid user ID format' });
+      }
+      
+      // IMPORTANT: Use { user: userId } not { _id: 'user' }
+      // The issue was that your code was using an incorrect field
+      const bookings = await Booking.find({ user: userId })
+        .sort({ createdAt: -1 })
+        .populate('assignedEmployees', 'name email');
+      
+      console.log(`Successfully retrieved ${bookings.length} bookings for user ${userId}`);
+      res.json(bookings);
+    } catch (error) {
+      console.error('Error in /bookings/user route:', error);
+      res.status(500).json({ 
+        message: 'Error fetching bookings',
+        error: error.message
+      });
+    }
+  })
+);
+
+/**
+ * @route   GET /api/bookings/by-current-user
+ * @desc    Get all bookings for the logged-in user (alternative endpoint)
+ * @access  Private
+ */
+router.get(
+  '/by-current-user',
+  authenticateToken,
+  asyncHandler(async (req, res) => {
+    try {
+      const userId = req.user.userId;
+      console.log(`Fetching bookings for logged-in user: ${userId}`);
+      
+      if (!mongoose.Types.ObjectId.isValid(userId)) {
+        console.error(`Invalid user ID format: ${userId}`);
+        return res.status(400).json({ message: 'Invalid user ID format' });
+      }
+      
+      const bookings = await Booking.find({ user: userId })
+        .sort({ createdAt: -1 })
+        .populate('assignedEmployees', 'name email');
+      
+      console.log(`Successfully retrieved ${bookings.length} bookings for user ${userId}`);
+      res.json(bookings);
+    } catch (error) {
+      console.error('Error fetching user bookings:', error);
+      res.status(500).json({ 
+        message: 'Error fetching bookings',
+        error: error.message
+      });
+    }
+  })
+);
+
+/**
  * @route   GET /api/bookings/:id
  * @desc    Get single booking by ID
  * @access  Private
@@ -155,6 +257,7 @@ router.get(
     res.json(booking)
   })
 )
+
 
 /**
  * @route   PUT /api/bookings/:id/status
@@ -458,5 +561,36 @@ router.post(
     res.status(201).json(createdBooking);
   })
 );
+
+
+/**
+ * @route   GET /api/bookings/debug-schema
+ * @desc    Debug endpoint to examine Booking schema and data
+ * @access  Private
+ */
+router.get('/debug-schema', authenticateToken, async (req, res) => {
+  try {
+    // Get the first booking in the DB
+    const sample = await Booking.findOne();
+    
+    // Get the schema structure
+    const schema = Booking.schema.paths;
+    
+    res.json({ 
+      sampleBooking: sample,
+      userFieldType: sample ? typeof sample.user : 'no sample found',
+      userFieldValue: sample ? sample.user : 'no sample found',
+      userFieldIsString: sample ? (typeof sample.user === 'string') : 'no sample found',
+      userFieldIsObjectId: sample ? sample.user instanceof mongoose.Types.ObjectId : 'no sample found',
+      schemaInfo: {
+        userField: schema.user.instance,
+        userPath: schema.user.path
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 
 module.exports = router;
