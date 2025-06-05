@@ -30,7 +30,6 @@ export default function AdminBookingsScreen({ navigation }) {
   const [rejectionModal, setRejectionModal] = useState(false)
   const [rejectionReason, setRejectionReason] = useState("")
   const [selectedBookingId, setSelectedBookingId] = useState(null)
-  const [debugInfo, setDebugInfo] = useState({})
   
   // New state for employee assignment
   const [assignEmployeeModal, setAssignEmployeeModal] = useState(false)
@@ -52,12 +51,7 @@ export default function AdminBookingsScreen({ navigation }) {
       return
     }
 
-    setDebugInfo({
-      apiUrl: API_URL,
-      userEmail: user?.email || "No email",
-      isAdmin: user?.isAdmin || false,
-      tokenPreview: token ? `${token.substring(0, 15)}...` : "No token"
-    })
+    
     
     fetchBookings()
   }, [user, navigation])
@@ -69,49 +63,7 @@ export default function AdminBookingsScreen({ navigation }) {
     }
   }, [filter, user?.isAdmin])
 
-  // Test API function for debugging
-  const testAdminAPI = () => {
-    console.log("Testing admin API directly")
-    setDebugInfo(prev => ({...prev, testing: true}))
-    
-    fetch(`${API_URL}/bookings/admin`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json"
-      }
-    })
-    .then(response => {
-      console.log("Status:", response.status)
-      setDebugInfo(prev => ({...prev, status: response.status}))
-      return response.json()
-    })
-    .then(data => {
-      console.log("Test API response:", JSON.stringify(data))
-      if (Array.isArray(data)) {
-        console.log(`Found ${data.length} bookings in test`)
-        setDebugInfo(prev => ({
-          ...prev, 
-          testing: false, 
-          results: `Found ${data.length} bookings`,
-          data: JSON.stringify(data, null, 2).substring(0, 500) + '...'
-        }))
-        Alert.alert("API Test Result", `Found ${data.length} bookings`)
-      } else {
-        setDebugInfo(prev => ({
-          ...prev, 
-          testing: false, 
-          results: "Response is not an array",
-          data: JSON.stringify(data, null, 2)
-        }))
-      }
-    })
-    .catch(error => {
-      console.error("Test API error:", error)
-      setDebugInfo(prev => ({...prev, testing: false, error: error.toString()}))
-      Alert.alert("API Test Error", error.toString())
-    })
-  }
-
+  
   const fetchBookings = async () => {
     setLoading(true)
     try {
@@ -470,64 +422,7 @@ export default function AdminBookingsScreen({ navigation }) {
     </View>
   )
 
-  // Debug view
-  const renderDebugView = () => (
-    <ScrollView style={styles.debugContainer}>
-      <Text style={styles.debugTitle}>Admin Panel Debugging</Text>
-      
-      <View style={styles.debugSection}>
-        <Text style={styles.debugSectionTitle}>Configuration</Text>
-        <Text style={styles.debugItem}>API URL: {debugInfo.apiUrl}/bookings/admin</Text>
-        <Text style={styles.debugItem}>User Email: {debugInfo.userEmail}</Text>
-        <Text style={styles.debugItem}>Is Admin: {String(debugInfo.isAdmin)}</Text>
-        <Text style={styles.debugItem}>Token: {debugInfo.tokenPreview}</Text>
-      </View>
-
-      <View style={styles.debugActions}>
-        <TouchableOpacity style={styles.debugButton} onPress={testAdminAPI}>
-          <Text style={styles.debugButtonText}>
-            {debugInfo.testing ? "Testing..." : "Test API Directly"}
-          </Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity style={styles.debugButton} onPress={fetchBookings}>
-          <Text style={styles.debugButtonText}>Fetch Bookings Again</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={[styles.debugButton, {backgroundColor: '#cc0000'}]} 
-          onPress={() => {
-            console.log("CURRENT BOOKINGS:", JSON.stringify(bookings));
-            Alert.alert("Current Bookings", `Count: ${bookings.length}`);
-          }}
-        >
-          <Text style={styles.debugButtonText}>Show Current Bookings</Text>
-        </TouchableOpacity>
-      </View>
-
-      {debugInfo.status && (
-        <View style={styles.debugSection}>
-          <Text style={styles.debugSectionTitle}>API Test Results</Text>
-          <Text style={styles.debugItem}>Status Code: {debugInfo.status}</Text>
-          {debugInfo.results && <Text style={styles.debugItem}>{debugInfo.results}</Text>}
-          {debugInfo.error && <Text style={[styles.debugItem, {color: 'red'}]}>{debugInfo.error}</Text>}
-        </View>
-      )}
-      
-      {debugInfo.data && (
-        <View style={styles.debugSection}>
-          <Text style={styles.debugSectionTitle}>Response Data Preview</Text>
-          <Text style={styles.debugCode}>{debugInfo.data}</Text>
-        </View>
-      )}
-      
-      <View style={styles.debugSection}>
-        <Text style={styles.debugSectionTitle}>Bookings State ({bookings.length})</Text>
-        <Text style={styles.debugCode}>{JSON.stringify(bookings.slice(0, 1), null, 2)}</Text>
-        {bookings.length > 1 && <Text style={styles.debugItem}>... and {bookings.length - 1} more</Text>}
-      </View>
-    </ScrollView>
-  )
+  
 
   return (
     <SafeAreaView style={styles.container}>
@@ -577,19 +472,10 @@ export default function AdminBookingsScreen({ navigation }) {
         >
           <Text style={[styles.filterText, filter === "all" && styles.activeFilterText]}>All</Text>
         </TouchableOpacity>
-        
-        <TouchableOpacity
-          style={[styles.filterTab, filter === "debug" && styles.activeFilterTab]}
-          onPress={() => setFilter("debug")}
-        >
-          <Text style={[styles.filterText, filter === "debug" && styles.activeFilterText]}>Debug</Text>
-        </TouchableOpacity>
       </View>
 
       {/* Bookings List or Debug View */}
-      {filter === "debug" ? (
-        renderDebugView()
-      ) : loading ? (
+      {loading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#000" />
           <Text style={styles.loadingText}>Loading bookings...</Text>
@@ -1009,62 +895,6 @@ const styles = StyleSheet.create({
   },
   disabledButton: {
     backgroundColor: "#ccc",
-  },
-  // Debug styles
-  debugContainer: {
-    flex: 1,
-    padding: 20,
-    backgroundColor: "#f9f9f9",
-  },
-  debugTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    marginBottom: 20,
-    textAlign: "center",
-  },
-  debugSection: {
-    backgroundColor: "#fff",
-    borderRadius: 8,
-    padding: 15,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: "#eee",
-  },
-  debugSectionTitle: {
-    fontSize: 16,
-    fontWeight: "bold",
-    marginBottom: 10,
-    color: "#333",
-    borderBottomWidth: 1,
-    borderBottomColor: "#eee",
-    paddingBottom: 5,
-  },
-  debugItem: {
-    fontSize: 14,
-    marginBottom: 5,
-    color: "#333",
-  },
-  debugActions: {
-    marginBottom: 20,
-  },
-  debugButton: {
-    backgroundColor: "#007AFF",
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: "center",
-    marginBottom: 10,
-  },
-  debugButtonText: {
-    color: "#fff",
-    fontWeight: "600",
-  },
-  debugCode: {
-    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
-    fontSize: 12,
-    padding: 10,
-    backgroundColor: "#f5f5f5",
-    borderRadius: 4,
-    color: "#333",
   },
   // New styles for employee assignment
   assignButton: {

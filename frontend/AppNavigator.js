@@ -228,7 +228,6 @@ function DrawerNavigator({ navigation }) {
         }}
         listeners={{
           drawerItemPress: (e) => {
-            e.preventDefault();
             navigation.navigate("MainStack", { screen: "Home" });
           },
         }}
@@ -319,14 +318,6 @@ function DrawerNavigator({ navigation }) {
       {/* Admin Specific Screens */}
       {user?.isAdmin && (
         <>
-          <Drawer.Screen
-            name="AdminBookings"
-            component={AdminBookingsScreen}
-            options={{
-              title: "Manage All Bookings",
-              drawerIcon: ({ color, size }) => <Ionicons name="briefcase-outline" size={size} color={color} />
-            }}
-          />
           <Drawer.Screen
             name="GiftCardAdmin"
             component={GiftCardAdmin}

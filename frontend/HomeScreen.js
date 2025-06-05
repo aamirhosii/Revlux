@@ -10,6 +10,7 @@ import {
   SafeAreaView,
   Dimensions,
   StatusBar,
+  Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -41,6 +42,39 @@ export default function HomeScreen({ navigation }) {
     });
   }, [navigation]);
 
+  // Debug the navigation structure
+  useLayoutEffect(() => {
+    try {
+      const navState = navigation.getState();
+      console.log("Available routes:", navState.routeNames);
+    } catch (error) {
+      console.log("Could not get navigation state:", error);
+    }
+  }, [navigation]);
+
+  const handleNavigate = (screenName) => {
+    console.log(`Attempting to navigate to: ${screenName}`);
+    
+    try {
+      // Try different navigation approaches
+      if (screenName === "Services") {
+        // First try direct navigation
+        navigation.navigate("ServicesNav");
+        
+      } else if (screenName === "Booking") {
+        // For booking, try to navigate to ServicesNav with a params flag
+        navigation.navigate("ServicesNav", { showBookingForm: true });
+        
+      } else {
+        // Use regular navigation for other screens
+        navigation.navigate(screenName);
+      }
+    } catch (error) {
+      console.error(`Navigation error to ${screenName}:`, error);
+      Alert.alert("Navigation Error", `Could not navigate to ${screenName}`);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" />
@@ -68,17 +102,17 @@ export default function HomeScreen({ navigation }) {
           <Section
             title="Our Services"
             iconName="car-outline"
-            onPress={() => navigation.navigate('Services')}
+            onPress={() => handleNavigate('Services')}
           />
           <Section
             title="Make a Booking"
             iconName="calendar-outline"
-            onPress={() => navigation.navigate('Booking')}
+            onPress={() => handleNavigate('Booking')}
           />
           <Section
             title="Contact Us"
             iconName="call-outline"
-            onPress={() => navigation.navigate('Contact')}
+            onPress={() => handleNavigate('Contact')}
           />
         </View>
       </ScrollView>

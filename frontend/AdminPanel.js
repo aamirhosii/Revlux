@@ -366,16 +366,49 @@ export default function AdminPanel() {
   };
 
   // Handle booking confirmation - showing employee selection modal
-  const confirmBooking = (bookingId) => {
-    // Store the booking ID
-    setCurrentBookingId(bookingId);
+  const confirmBooking = async (bookingId, employeeIds = []) => {
+  try {
+    setIsLoading(true);
     
-    // Fetch employees for assignment
-    fetchEmployees();
+    const token = await AsyncStorage.getItem("token");
+    if (!token) {
+      Alert.alert("Error", "Authentication required");
+      return;
+    }
     
-    // Show the employee assignment modal
-    setAssignEmployeeModalVisible(true);
-  };
+    const response = await axios.put(
+      `${API_URL}/api/bookings/${bookingId}/confirm`,
+      { assignedEmployees: employeeIds },
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json"
+        }
+      }
+    );
+    
+    console.log("Booking confirmed:", response.data);
+    
+    setBookings((prevBookings) =>
+      prevBookings.map((booking) =>
+        booking._id === bookingId ? { 
+          ...booking, 
+          status: "confirmed",
+          assignedEmployees: employeeIds
+        } : booking
+      )
+    );
+    
+    Alert.alert("Success", "Booking confirmed and notification emails sent");
+    // Refresh bookings
+    fetchBookings();
+  } catch (error) {
+    console.error("Error confirming booking:", error);
+    Alert.alert("Error", "Failed to confirm booking");
+  } finally {
+    setIsLoading(false);
+  }
+};
 
  // Function to assign employee and confirm booking
 const assignEmployeeAndConfirm = async () => {
@@ -469,47 +502,62 @@ const assignEmployeeAndConfirm = async () => {
   }
 };
   // Reject booking
-  const rejectBooking = (bookingId) => {
-    Alert.alert(
-      "Reject Booking",
-      "Are you sure you want to reject this booking?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Reject",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              const token = await AsyncStorage.getItem("token");
-              await axios.put(
-                `${API_URL}/api/bookings/${bookingId}/status`,
-                { status: "rejected" },
-                {
-                  headers: {
-                    "Content-Type": "application/json",
-                    Authorization: `Bearer ${token}`,
-                  },
-                }
-              );
-
-              // Update local state
-              setBookings((prevBookings) =>
-                prevBookings.map((booking) =>
-                  booking._id === bookingId ? { ...booking, status: "rejected" } : booking
-                )
-              );
-
-              Alert.alert("Success", "Booking rejected successfully");
-              fetchBookings();
-            } catch (error) {
-              console.error("Error rejecting booking:", error);
-              Alert.alert("Error", "Failed to reject booking. Please try again.");
+const rejectBooking = (bookingId) => {
+  Alert.alert(
+    "Reject Booking",
+    "Are you sure you want to reject this booking?",
+    [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Reject",
+        style: "destructive",
+        onPress: async (reason = "") => {
+          try {
+            setIsLoading(true);
+            
+            const token = await AsyncStorage.getItem("token");
+            if (!token) {
+              Alert.alert("Error", "Authentication required");
+              return;
             }
-          },
+            
+            const response = await axios.put(
+              `${API_URL}/api/bookings/${bookingId}/reject`,
+              { reason },
+              {
+                headers: {
+                  Authorization: `Bearer ${token}`,
+                  "Content-Type": "application/json"
+                }
+              }
+            );
+            
+            console.log("Booking rejected:", response.data);
+            
+            setBookings((prevBookings) =>
+              prevBookings.map((booking) =>
+                booking._id === bookingId ? { 
+                  ...booking, 
+                  status: "rejected",
+                  rejectionReason: reason
+                } : booking
+              )
+            );
+            
+            Alert.alert("Success", "Booking rejected and customer notified");
+            // Refresh bookings
+            fetchBookings();
+          } catch (error) {
+            console.error("Error rejecting booking:", error);
+            Alert.alert("Error", "Failed to reject booking");
+          } finally {
+            setIsLoading(false);
+          }
         },
-      ]
-    );
-  };
+      },
+    ]
+  );
+};
 
   // This function auto-calculates the endTime based on startTime + serviceDuration
   const addTimeSlotToList = () => {

@@ -490,6 +490,102 @@ router.delete(
 )
 
 /**
+ * @route   PUT /api/bookings/:id/confirm
+ * @desc    Confirm a booking
+ * @access  Private - Admin only
+ */
+router.put(
+  '/:id/confirm',
+  authenticateToken,
+  admin,
+  asyncHandler(async (req, res) => {
+    try {
+      const booking = await Booking.findById(req.params.id);
+      
+      if (!booking) {
+        return res.status(404).json({ message: 'Booking not found' });
+      }
+      
+      booking.status = 'confirmed';
+      
+      // If employees are being assigned
+      if (req.body.assignedEmployees && req.body.assignedEmployees.length > 0) {
+        booking.assignedEmployees = req.body.assignedEmployees;
+        
+        // Notify each assigned employee
+        for (const employeeId of req.body.assignedEmployees) {
+          try {
+            const employee = await User.findById(employeeId);
+            if (employee && employee.email) {
+              console.log(`Sending assignment email to employee: ${employee.name}`);
+              await emailService.sendEmployeeAssignedEmail(employee, booking);
+            }
+          } catch (emailError) {
+            console.error(`Failed to send employee assignment email: ${emailError}`);
+            // Continue even if one email fails
+          }
+        }
+      }
+      
+      const updatedBooking = await booking.save();
+      
+      // Send confirmation email to customer
+      try {
+        console.log(`Sending confirmation email to customer: ${booking.customerName}`);
+        await emailService.sendBookingConfirmationEmail(updatedBooking);
+      } catch (emailError) {
+        console.error(`Failed to send booking confirmation email: ${emailError}`);
+        // Continue even if email fails - the booking is still confirmed
+      }
+      
+      res.json(updatedBooking);
+    } catch (error) {
+      console.error('Error confirming booking:', error);
+      res.status(500).json({ message: 'Server error', error: error.message });
+    }
+  })
+);
+
+/**
+ * @route   PUT /api/bookings/:id/reject
+ * @desc    Reject a booking
+ * @access  Private - Admin only
+ */
+router.put(
+  '/:id/reject',
+  authenticateToken,
+  admin,
+  asyncHandler(async (req, res) => {
+    try {
+      const booking = await Booking.findById(req.params.id);
+      
+      if (!booking) {
+        return res.status(404).json({ message: 'Booking not found' });
+      }
+      
+      booking.status = 'rejected';
+      booking.rejectionReason = req.body.reason || 'No specific reason provided';
+      
+      const updatedBooking = await booking.save();
+      
+      // Add email service for rejection notification
+      try {
+        console.log(`Sending rejection email to customer: ${booking.customerName}`);
+        await sendBookingRejectionEmail(updatedBooking);
+      } catch (emailError) {
+        console.error(`Failed to send booking rejection email: ${emailError}`);
+        // Continue even if email fails
+      }
+      
+      res.json(updatedBooking);
+    } catch (error) {
+      console.error('Error rejecting booking:', error);
+      res.status(500).json({ message: 'Server error', error: error.message });
+    }
+  })
+);
+
+/**
  * @route   POST /api/bookings/admin-create
  * @desc    Allow admins to create bookings on behalf of users
  * @access  Private/Admin

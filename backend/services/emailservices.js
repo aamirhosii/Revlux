@@ -238,6 +238,43 @@ const sendContactFormEmail = async (formData) => {
 };
 
 /**
+ * Send booking rejection email to customer
+ */
+const sendBookingRejectionEmail = async (booking) => {
+  try {
+    const mailOptions = {
+      from: `Shelby Auto Detailing <${process.env.EMAIL_FROM}>`,
+      to: booking.email,
+      subject: 'Regarding Your Shelby Auto Detailing Booking',
+      html: `
+        <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
+          <h2>Booking Update</h2>
+          <p>Hello ${booking.customerName || 'Valued Customer'},</p>
+          <p>We're sorry to inform you that we are unable to accommodate your booking request at this time.</p>
+          <div style="background:#f4f4f4;padding:15px;margin:20px 0;">
+            <p><strong>Date requested:</strong> ${booking.date}</p>
+            <p><strong>Time requested:</strong> ${booking.time}</p>
+            <p><strong>Address:</strong> ${booking.address}</p>
+          </div>
+          ${booking.rejectionReason ? `<p><strong>Reason:</strong> ${booking.rejectionReason}</p>` : ''}
+          <p>We invite you to schedule another appointment at a different date or time. Please call us at (416) 567-3082 for immediate assistance or use the app to book a new appointment.</p>
+          <p>Thank you for your understanding and for choosing Shelby Auto Detailing.</p>
+        </div>
+      `
+    };
+    
+    const result = await sendEmail(mailOptions);
+    if (result.success) {
+      console.log(`Booking rejection email sent to: ${booking.email}`);
+    }
+    return result;
+  } catch (error) {
+    console.error('Error sending booking rejection email:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
  * Send booking confirmation email to customer
  */
 const sendBookingConfirmationEmail = async (booking) => {
@@ -270,6 +307,8 @@ const sendBookingConfirmationEmail = async (booking) => {
         </div>
       `
     };
+
+    
     
     const result = await sendEmail(mailOptions);
     if (result.success) {
@@ -314,6 +353,8 @@ const sendEmployeeAssignedEmail = async (employee, booking) => {
         </div>
       `
     };
+
+    
     
     const result = await sendEmail(mailOptions);
     if (result.success) {
@@ -332,5 +373,5 @@ module.exports = {
   sendPasswordResetEmail,
   sendContactFormEmail,
   sendBookingConfirmationEmail,
-  sendEmployeeAssignedEmail // Added the new function to exports
+  sendEmployeeAssignedEmail
 };
