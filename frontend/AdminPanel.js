@@ -940,6 +940,53 @@ const calculateHours = (employeeData) => {
     );
   };
 
+  // Add this function right after the toggleEmployeeStatus function 
+
+// Toggle admin status directly from the user list
+const toggleAdminStatus = async (user) => {
+  const newIsAdmin = !user.isAdmin;
+  const action = newIsAdmin ? "make admin" : "remove admin status from";
+  
+  Alert.alert(
+    `${newIsAdmin ? "Assign" : "Remove"} Admin Status`,
+    `Are you sure you want to ${action} ${user.name}?`,
+    [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Confirm",
+        onPress: async () => {
+          try {
+            const token = await AsyncStorage.getItem("token");
+            await axios.put(
+              `${API_URL}/users/${user._id}`,
+              { isAdmin: newIsAdmin },
+              { headers: { Authorization: `Bearer ${token}` } }
+            );
+            
+            // Update local state to reflect changes immediately
+            setUsers(prevUsers => 
+              prevUsers.map(u => 
+                u._id === user._id ? { ...u, isAdmin: newIsAdmin } : u
+              )
+            );
+            
+            Alert.alert(
+              "Success", 
+              `${user.name} has been ${newIsAdmin ? "assigned as an admin" : "removed from admin role"}.`
+            );
+          } catch (error) {
+            console.error("Error updating admin status:", error);
+            Alert.alert(
+              "Error",
+              error.response?.data?.message || "Failed to update admin status"
+            );
+          }
+        }
+      }
+    ]
+  );
+};
+
   // Handle booking confirmation - showing employee selection modal
   const confirmBooking = async (bookingId, employeeIds = []) => {
   try {
@@ -1231,13 +1278,36 @@ const rejectBooking = (bookingId) => {
         </View>
       )}
 
+           // Update the userActions section in renderUserItem function:
+      
       <View style={styles.userActions}>
         <TouchableOpacity style={styles.userActionButton} onPress={() => openEditModal(item)}>
           <Ionicons name="create-outline" size={18} color="#000" />
           <Text style={styles.userActionText}>Edit</Text>
         </TouchableOpacity>
         
-        {/* Quick action button to toggle employee status */}
+        {/* Admin toggle button */}
+        <TouchableOpacity 
+          style={[
+            styles.userActionButton, 
+            item.isAdmin ? styles.adminActionButton : styles.regularActionButton
+          ]} 
+          onPress={() => toggleAdminStatus(item)}
+        >
+          <Ionicons 
+            name={item.isAdmin ? "shield-outline" : "shield"} 
+            size={18} 
+            color={item.isAdmin ? "#fff" : "#000"} 
+          />
+          <Text style={[
+            styles.userActionText, 
+            item.isAdmin ? styles.adminActionText : {}
+          ]}>
+            {item.isAdmin ? "Remove Admin" : "Make Admin"}
+          </Text>
+        </TouchableOpacity>
+        
+        {/* Employee toggle button */}
         <TouchableOpacity 
           style={[
             styles.userActionButton, 
@@ -2262,19 +2332,23 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     color: "#333",
   },
-  userActions: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    marginTop: 10,
-  },
-  userActionButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#f0f0f0",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
-  },
+ userActions: {
+  flexDirection: "row",
+  flexWrap: "wrap",
+  justifyContent: "flex-end",
+  marginTop: 10,
+},
+
+userActionButton: {
+  flexDirection: "row",
+  alignItems: "center",
+  backgroundColor: "#f0f0f0",
+  paddingHorizontal: 12,
+  paddingVertical: 6,
+  borderRadius: 6,
+  marginTop: 5,
+  marginRight: 8,
+},
   userActionText: {
     marginLeft: 5,
     fontWeight: "500",
@@ -3093,5 +3167,13 @@ const styles = StyleSheet.create({
   clockOutButton: {
     borderWidth: 1,
     borderColor: "#e0e0e0",
-  }
+  },
+
+  adminActionButton: {
+  backgroundColor: "#FF9800",
+  marginLeft: 8,
+},
+adminActionText: {
+  color: "#fff",
+}
 });
