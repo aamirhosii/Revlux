@@ -6,15 +6,31 @@ const Booking = require('../models/Booking');
 const ClockEvent = require('../models/ClockEvent');
 const { authenticateToken, isEmployee } = require('./auth');
 
-// Middleware to ensure the user is an employee for all routes in this file
-router.use(authenticateToken, isEmployee);
+// Apply authentication to all routes, but not employee restriction
+router.use(authenticateToken);
+
+// Debug route to check authentication status
+router.get('/check-auth', (req, res) => {
+  console.log("Auth check - User info:", {
+    userId: req.user.userId,
+    isAdmin: req.user.isAdmin,
+    isEmployee: req.user.isEmployee
+  });
+  
+  res.json({
+    userId: req.user.userId,
+    isAdmin: !!req.user.isAdmin,
+    isEmployee: !!req.user.isEmployee,
+    message: "Authentication check successful"
+  });
+});
 
 /**
  * @route   POST /api/employee/clock-in
  * @desc    Clock in an employee
  * @access  Private - Employee only
  */
-router.post('/clock-in', async (req, res) => {
+router.post('/clock-in', isEmployee, async (req, res) => {
   try {
     const employeeId = req.user.userId;
     const { notes, location } = req.body;
@@ -69,7 +85,7 @@ router.post('/clock-in', async (req, res) => {
  * @desc    Clock out an employee
  * @access  Private - Employee only
  */
-router.post('/clock-out', async (req, res) => {
+router.post('/clock-out', isEmployee, async (req, res) => {
   try {
     const employeeId = req.user.userId;
     const { notes, location } = req.body;
@@ -133,7 +149,7 @@ router.post('/clock-out', async (req, res) => {
  * @desc    Get employee clock-in status
  * @access  Private - Employee only
  */
-router.get('/status', async (req, res) => {
+router.get('/status', isEmployee, async (req, res) => {
   try {
     const employeeId = req.user.userId;
     
@@ -171,7 +187,7 @@ router.get('/status', async (req, res) => {
  * @desc    Get employee's shift history
  * @access  Private - Employee only
  */
-router.get('/shifts', async (req, res) => {
+router.get('/shifts', isEmployee, async (req, res) => {
   try {
     const employeeId = req.user.userId;
     const { start, end, limit = 30, page = 1 } = req.query;
@@ -235,7 +251,7 @@ router.get('/shifts', async (req, res) => {
  * @desc    Get bookings assigned to the logged-in employee
  * @access  Private - Employee only
  */
-router.get('/assigned-jobs', async (req, res) => {
+router.get('/assigned-jobs', isEmployee, async (req, res) => {
   try {
     const employeeId = req.user.userId;
     console.log(`[EMPLOYEE API] Fetching assigned jobs for employee: ${employeeId}`);
@@ -267,7 +283,7 @@ router.get('/assigned-jobs', async (req, res) => {
  * @desc    Update job completion status
  * @access  Private - Employee only
  */
-router.put('/jobs/:jobId/status', async (req, res) => {
+router.put('/jobs/:jobId/status', isEmployee, async (req, res) => {
   try {
     const { jobId } = req.params;
     const { status, completionNotes } = req.body;
@@ -307,6 +323,256 @@ router.put('/jobs/:jobId/status', async (req, res) => {
   } catch (error) {
     console.error("Error updating job status:", error);
     res.status(500).json({ message: "Server error updating job status" });
+  }
+});
+
+/**
+ * @route   GET /api/employee/timesheets
+ * @desc    Get all timesheets (admin only)
+ * @access  Private - Admin only
+ */
+router.get('/timesheets', async (req, res) => {
+  try {
+    console.log("Timesheets API called by user:", req.user.userId);
+    console.log("User admin status:", !!req.user.isAdmin);
+    
+    // Only admin can access all timesheets
+    if (!req.user.isAdmin) {
+      console.log("Access denied - non-admin attempted to access timesheets");
+      return res.status(403).json({ message: "Access denied - Admin only" });
+    }
+    
+    const { startDate, endDate } = req.query;
+    
+    // Build query for date filtering
+    const query = {};
+    if (startDate || endDate) {
+      query.timestamp = {};
+      if (startDate) query.timestamp.$gte = new Date(startDate);
+      if (endDate) query.timestamp.$lte = new Date(endDate + 'T23:59:59.999Z');
+    }
+    
+    console.log("Timesheet query:", JSON.stringify(query));
+    
+    // Get all clock events, sorted by timestamp desc
+    const clockEvents = await ClockEvent.find(query)
+      .populate('employee', 'name email')
+      .sort({ timestamp: -1 });
+    
+    console.log(`Found ${clockEvents.length} timesheet entries`);
+    res.status(200).json(clockEvents);
+    
+  } catch (error) {
+    console.error("Error fetching all timesheets:", error);
+    res.status(500).json({ message: "Server error fetching timesheets" });
+  }
+});
+
+/**
+ * @route   GET /api/employee/timesheets/:employeeId
+ * @desc    Get timesheets for a specific employee
+ * @access  Private - Admin or Self only
+ */
+router.get('/timesheets/:employeeId', async (req, res) => {
+  try {
+    const { employeeId } = req.params;
+    const { startDate, endDate } = req.query;
+    
+    console.log(`Fetching timesheets for employee ID: ${employeeId}`);
+    console.log(`Requested by user ID: ${req.user.userId} (isAdmin: ${!!req.user.isAdmin})`);
+    
+    // Check permissions - only admin or self can access
+    if (!req.user.isAdmin && req.user.userId !== employeeId) {
+      console.log("Access denied - unauthorized user attempted to access employee timesheets");
+      return res.status(403).json({ message: "Access denied" });
+    }
+    
+    // Verify employee exists
+    const employee = await User.findById(employeeId);
+    if (!employee || !employee.isEmployee) {
+      return res.status(404).json({ message: "Employee not found" });
+    }
+    
+    // Build query for date filtering
+    const query = { employee: employeeId };
+    if (startDate || endDate) {
+      query.timestamp = {};
+      if (startDate) query.timestamp.$gte = new Date(startDate);
+      if (endDate) query.timestamp.$lte = new Date(endDate + 'T23:59:59.999Z');
+    }
+    
+    console.log("Employee timesheet query:", JSON.stringify(query));
+    
+    // Get clock events for this employee
+    const clockEvents = await ClockEvent.find(query)
+      .sort({ timestamp: -1 });
+    
+    console.log(`Found ${clockEvents.length} timesheet entries for employee ${employeeId}`);
+    res.status(200).json(clockEvents);
+    
+  } catch (error) {
+    console.error("Error fetching employee timesheets:", error);
+    res.status(500).json({ message: "Server error fetching timesheets" });
+  }
+});
+
+/**
+ * @route   PUT /api/employee/timesheet/:id
+ * @desc    Update a timesheet entry
+ * @access  Private - Admin only
+ */
+router.put('/timesheet/:id', async (req, res) => {
+  try {
+    console.log(`Updating timesheet entry ${req.params.id}`);
+    console.log(`User ID: ${req.user.userId}, isAdmin: ${!!req.user.isAdmin}`);
+    
+    // Only admin can update timesheet entries
+    if (!req.user.isAdmin) {
+      console.log("Access denied - non-admin attempted to update timesheet entry");
+      return res.status(403).json({ message: "Access denied - Admin only" });
+    }
+    
+    const { id } = req.params;
+    const { timestamp, type, notes } = req.body;
+    
+    console.log("Update data:", { timestamp, type, notes });
+    
+    // Find the clock event
+    const clockEvent = await ClockEvent.findById(id);
+    if (!clockEvent) {
+      return res.status(404).json({ message: "Timesheet entry not found" });
+    }
+    
+    // Update fields
+    if (timestamp) clockEvent.timestamp = new Date(timestamp);
+    if (type && ['clock-in', 'clock-out'].includes(type)) clockEvent.type = type;
+    if (notes !== undefined) clockEvent.notes = notes;
+    
+    // Add audit information
+    clockEvent.lastModifiedBy = req.user.userId;
+    clockEvent.lastModifiedAt = new Date();
+    
+    await clockEvent.save();
+    console.log(`Timesheet entry ${id} updated successfully`);
+    
+    // If this is a paired event, may need to update shift calculations
+    if (clockEvent.pairedEventId) {
+      // Logic to recalculate hours if needed
+      // This could be handled by your ClockEvent model
+    }
+    
+    res.status(200).json({
+      message: "Timesheet entry updated successfully",
+      entry: clockEvent
+    });
+    
+  } catch (error) {
+    console.error("Error updating timesheet entry:", error);
+    res.status(500).json({ message: "Server error updating timesheet entry" });
+  }
+});
+
+/**
+ * @route   DELETE /api/employee/timesheet/:id
+ * @desc    Delete a timesheet entry
+ * @access  Private - Admin only
+ */
+router.delete('/timesheet/:id', async (req, res) => {
+  try {
+    console.log(`Deleting timesheet entry ${req.params.id}`);
+    console.log(`User ID: ${req.user.userId}, isAdmin: ${!!req.user.isAdmin}`);
+    
+    // Only admin can delete timesheet entries
+    if (!req.user.isAdmin) {
+      console.log("Access denied - non-admin attempted to delete timesheet entry");
+      return res.status(403).json({ message: "Access denied - Admin only" });
+    }
+    
+    const { id } = req.params;
+    
+    // Find the clock event
+    const clockEvent = await ClockEvent.findById(id);
+    if (!clockEvent) {
+      return res.status(404).json({ message: "Timesheet entry not found" });
+    }
+    
+    // If this event is paired, unlink the pair
+    if (clockEvent.pairedEventId) {
+      const pairedEvent = await ClockEvent.findById(clockEvent.pairedEventId);
+      if (pairedEvent) {
+        pairedEvent.pairedEventId = null;
+        await pairedEvent.save();
+      }
+    }
+    
+    // Delete the event
+    await ClockEvent.findByIdAndDelete(id);
+    console.log(`Timesheet entry ${id} deleted successfully`);
+    
+    res.status(200).json({
+      message: "Timesheet entry deleted successfully"
+    });
+    
+  } catch (error) {
+    console.error("Error deleting timesheet entry:", error);
+    res.status(500).json({ message: "Server error deleting timesheet entry" });
+  }
+});
+
+/**
+ * @route   POST /api/employee/timesheet
+ * @desc    Create a manual timesheet entry
+ * @access  Private - Admin only
+ */
+router.post('/timesheet', async (req, res) => {
+  try {
+    console.log("Creating manual timesheet entry");
+    console.log(`User ID: ${req.user.userId}, isAdmin: ${!!req.user.isAdmin}`);
+    
+    // Only admin can create manual entries
+    if (!req.user.isAdmin) {
+      console.log("Access denied - non-admin attempted to create timesheet entry");
+      return res.status(403).json({ message: "Access denied - Admin only" });
+    }
+    
+    const { userId, timestamp, type, notes } = req.body;
+    console.log("Entry data:", { userId, timestamp, type, notes });
+    
+    // Validate required fields
+    if (!userId || !timestamp || !type) {
+      return res.status(400).json({ message: "Missing required fields" });
+    }
+    
+    // Validate employee exists
+    const employee = await User.findById(userId);
+    if (!employee || !employee.isEmployee) {
+      return res.status(404).json({ message: "Employee not found" });
+    }
+    
+    // Create new clock event
+    const clockEvent = new ClockEvent({
+      employee: userId,
+      type: type,
+      timestamp: new Date(timestamp),
+      notes: notes || '',
+      manuallyAdded: true,
+      createdBy: req.user.userId
+    });
+    
+    await clockEvent.save();
+    console.log(`Manual timesheet entry created for employee ${userId}`);
+    
+    // If this is a clock-out event that should be paired with a clock-in
+    // Add logic here to find a clock-in to pair with, if needed
+    
+    res.status(201).json({
+      message: "Timesheet entry created successfully",
+      entry: clockEvent
+    });
+    
+  } catch (error) {
+    console.error("Error creating timesheet entry:", error);
+    res.status(500).json({ message: "Server error creating timesheet entry" });
   }
 });
 

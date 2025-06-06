@@ -57,7 +57,8 @@ const SERVICE_TYPES = ["CORE", "PRO", "ULTRA", "SAPPHIRE", "EMERALD", "DIAMOND"]
 const TABS = {
   AVAILABILITY: "AVAILABILITY",
   USERS: "USERS",
-  BOOKINGS: "BOOKINGS", // New tab for bookings
+  BOOKINGS: "BOOKINGS",
+  TIMESHEETS: "TIMESHEETS",  
 }
 
 export default function AdminPanel() {
@@ -71,6 +72,7 @@ export default function AdminPanel() {
     return user && (user.role === "employee" || user.isEmployee === true);
   };
 
+  
   // User management state
   const [users, setUsers] = useState([])
   const [searchQuery, setSearchQuery] = useState("")
@@ -106,18 +108,33 @@ export default function AdminPanel() {
   const [selectedEmployee, setSelectedEmployee] = useState(null)
   const [currentBookingId, setCurrentBookingId] = useState(null)
 
+  // Add these state variables to the AdminPanel component
+const [timesheetData, setTimesheetData] = useState([]);
+const [timesheetLoading, setTimesheetLoading] = useState(false);
+const [dateFilter, setDateFilter] = useState({
+  startDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // Last 7 days
+  endDate: new Date().toISOString().split('T')[0]
+});
+const [editTimeEntryModalVisible, setEditTimeEntryModalVisible] = useState(false);
+const [currentTimeEntry, setCurrentTimeEntry] = useState(null);
+const [dateInputText, setDateInputText] = useState("");
+const [timeInputText, setTimeInputText] = useState("");
+
   // Active tab state
   const [activeTab, setActiveTab] = useState(TABS.BOOKINGS)
 
   useEffect(() => {
-    if (activeTab === TABS.AVAILABILITY) {
-      fetchAllAvailability()
-    } else if (activeTab === TABS.USERS) {
-      fetchUsers()
-    } else if (activeTab === TABS.BOOKINGS) {
-      fetchBookings()
-    }
-  }, [activeTab])
+  if (activeTab === TABS.AVAILABILITY) {
+    fetchAllAvailability();
+  } else if (activeTab === TABS.USERS) {
+    fetchUsers();
+  } else if (activeTab === TABS.BOOKINGS) {
+    fetchBookings();
+  } else if (activeTab === TABS.TIMESHEETS) {
+    fetchEmployees();
+    fetchTimesheetData();
+  }
+}, [activeTab]);
 
   // Fetch all availability data
   const fetchAllAvailability = async () => {
@@ -148,6 +165,46 @@ export default function AdminPanel() {
       Alert.alert("Error", "Failed to fetch employees")
     }
   }
+
+   const fetchTimesheetData = async () => {
+    setTimesheetLoading(true);
+    try {
+      const token = await AsyncStorage.getItem("token");
+      if (!token) {
+        Alert.alert("Error", "Authentication required");
+        return;
+      }
+      
+      let url = `${API_URL}/api/employee/timesheets`;
+      if (selectedEmployee) {
+        url += `/${selectedEmployee._id}`;
+      }
+      
+      // Add date range filters
+      const params = new URLSearchParams({
+        startDate: dateFilter.startDate,
+        endDate: dateFilter.endDate
+      }).toString();
+      
+      url += `?${params}`;
+      
+      console.log("Fetching timesheet data from:", url);
+      
+      const response = await axios.get(url, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      console.log("Timesheet data received:", response.data.length, "entries");
+      
+      // Force the component to re-render by creating a new array
+      setTimesheetData([...response.data]);
+    } catch (error) {
+      console.error("Error fetching timesheet data:", error);
+      Alert.alert("Error", "Failed to fetch employee timesheet data");
+    } finally {
+      setTimesheetLoading(false);
+    }
+  };
 
   // Fetch users with optional search query
   const fetchUsers = async (page = 1, search = searchQuery) => {
@@ -263,6 +320,468 @@ export default function AdminPanel() {
     }
   }
 
+  // Open edit modal for a time entry
+const openEditTimeEntryModal = (entry) => {
+  const date = new Date(entry.timestamp);
+  
+  setCurrentTimeEntry({
+    ...entry,
+    timestamp: date,
+  });
+  
+  // Format the date and time for the text inputs
+  setDateInputText(date.toISOString().split('T')[0]);
+  setTimeInputText(
+    `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
+  );
+  
+  setEditTimeEntryModalVisible(true);
+};
+
+
+// Delete a time entry
+const deleteTimeEntry = async (entryId) => {
+  Alert.alert(
+    "Delete Time Entry",
+    "Are you sure you want to delete this time entry? This action cannot be undone.",
+    [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            setIsLoading(true);
+            const token = await AsyncStorage.getItem("token");
+            
+            await axios.delete(`${API_URL}/api/employee/timesheet/${entryId}`, {
+              headers: { Authorization: `Bearer ${token}` }
+            });
+            
+            Alert.alert("Success", "Time entry deleted successfully");
+            fetchTimesheetData();
+          } catch (error) {
+            console.error("Error deleting time entry:", error);
+            Alert.alert("Error", "Failed to delete time entry");
+          } finally {
+            setIsLoading(false);
+          }
+        }
+      }
+    ]
+  );
+};
+
+// Add a manual time entry for an employee
+const addManualTimeEntry = () => {
+  if (!selectedEmployee) {
+    Alert.alert("Error", "Please select an employee first");
+    return;
+  }
+  
+  const now = new Date();
+  
+  // Create a new empty entry with current timestamp
+  setCurrentTimeEntry({
+    _id: "new",
+    userId: selectedEmployee._id, 
+    timestamp: now,
+    type: "clock-in",
+    notes: ""
+  });
+  
+  // Format current date and time for inputs
+  setDateInputText(now.toISOString().split('T')[0]);
+  setTimeInputText(
+    `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+  );
+  
+  setEditTimeEntryModalVisible(true);
+};
+
+// Update the saveNewTimeEntry function:
+
+const saveNewTimeEntry = async () => {
+  if (!selectedEmployee) {
+    Alert.alert("Error", "Please select an employee first");
+    return;
+  }
+  
+  // Validate and parse the date/time
+  try {
+    // Validate date format
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateInputText)) {
+      Alert.alert("Invalid Date", "Please enter date in YYYY-MM-DD format");
+      return;
+    }
+    
+    // Validate time format
+    if (!/^\d{1,2}:\d{2}$/.test(timeInputText)) {
+      Alert.alert("Invalid Time", "Please enter time in HH:MM format");
+      return;
+    }
+    
+    // Parse date and time
+    const [year, month, day] = dateInputText.split('-').map(Number);
+    const [hours, minutes] = timeInputText.split(':').map(Number);
+    
+    // Create the timestamp
+     
+    // Update the currentTimeEntry with the new timestamp
+        // Create the timestamp with parsed year, month, day, hours, and minutes
+    const timestamp = new Date(year, month - 1, day, hours, minutes);
+    
+    // Ensure we send employeeId as expected by backend
+    const payload = {
+      userId: selectedEmployee._id,
+      timestamp: timestamp.toISOString(),
+      type: currentTimeEntry.type,
+      notes: currentTimeEntry.notes || "",
+      manuallyAdded: true
+    };
+    
+    console.log("Sending timesheet entry:", payload);
+    setIsLoading(true);
+    const token = await AsyncStorage.getItem("token");
+    
+    const response = await axios.post(
+      `${API_URL}/api/employee/timesheet`,
+      payload,
+      {
+        headers: { Authorization: `Bearer ${token}` }
+      }
+    );
+    
+    console.log("Timesheet entry response:", response.data);
+    Alert.alert("Success", "New time entry added successfully");
+    setEditTimeEntryModalVisible(false);
+    
+    // Add a slight delay before refreshing data to ensure server has processed
+    setTimeout(() => {
+      fetchTimesheetData();
+    }, 300);
+  } catch (error) {
+    // Error handling remains the same...
+  } finally {
+    setIsLoading(false);
+  }
+  setCurrentTimeEntry(null);
+setEditTimeEntryModalVisible(false);
+
+// Force a complete data refresh
+setTimesheetLoading(true);
+setTimeout(() => {
+  fetchTimesheetData();
+}, 500);
+};
+
+// Render the timesheet management tab
+const renderTimesheetsTab = () => {
+ // Replace the entire organizeByEmployee function with this version:
+
+// Modify your organizeByEmployee function:
+
+
+const organizeByEmployee = () => {
+  console.log("Organizing timesheet data, entries:", timesheetData.length);
+  
+  const grouped = {};
+  
+  timesheetData.forEach(entry => {
+    // Log to see the actual structure
+    console.log("Entry type:", entry.type, "Entry structure:", 
+      entry.employee ? "Has employee object" : "Has userId", 
+      "ID:", entry._id);
+    
+    // Handle different data structure formats
+    const employeeData = entry.employee || entry.userId;
+    if (!employeeData) {
+      console.warn("Entry missing employee data:", entry._id);
+      return;
+    }
+    
+    // For selected employee view, we might need to use the selectedEmployee
+    const employeeId = typeof employeeData === 'object' ? employeeData._id : employeeData;
+    
+    // Try to get name from multiple possible sources
+    let employeeName = "Unknown Employee";
+    
+    if (typeof employeeData === 'object' && employeeData.name) {
+      employeeName = employeeData.name;
+    } else if (selectedEmployee && selectedEmployee._id === employeeId) {
+      employeeName = selectedEmployee.name;
+    } else {
+      // Try to find employee in the list
+      const matchedEmployee = employeesList.find(emp => emp._id === employeeId);
+      if (matchedEmployee) {
+        employeeName = matchedEmployee.name;
+      }
+    }
+    
+    const date = new Date(entry.timestamp).toLocaleDateString();
+    
+    if (!grouped[employeeId]) {
+      grouped[employeeId] = {
+        name: employeeName,
+        dates: {}
+      };
+    }
+    
+    // Rest of your function remains the same
+    if (!grouped[employeeId].dates[date]) {
+      grouped[employeeId].dates[date] = [];
+    }
+    
+    grouped[employeeId].dates[date].push(entry);
+  });
+  
+  return grouped;
+};
+  
+  
+  return (
+    <>
+      <View style={styles.sectionCard}>
+        <View style={styles.sectionHeader}>
+          <Ionicons name="time-outline" size={22} color="#000" style={styles.sectionIcon} />
+          <Text style={styles.sectionTitle}>Employee Time Management</Text>
+        </View>
+        
+        {/* Improved Date Range Filter with better spacing */}
+        <View style={styles.filterContainer}>
+          <Text style={styles.filterSectionTitle}>Date Range</Text>
+          <View style={styles.dateFilterRow}>
+            <View style={styles.dateInputContainer}>
+              <TextInput
+                style={styles.dateInput}
+                value={dateFilter.startDate}
+                onChangeText={(text) => setDateFilter({...dateFilter, startDate: text})}
+                placeholder="YYYY-MM-DD"
+              />
+            </View>
+            <Text style={styles.dateRangeSeparator}>to</Text>
+            <View style={styles.dateInputContainer}>
+              <TextInput
+                style={styles.dateInput}
+                value={dateFilter.endDate}
+                onChangeText={(text) => setDateFilter({...dateFilter, endDate: text})}
+                placeholder="YYYY-MM-DD"
+              />
+            </View>
+            <TouchableOpacity 
+              style={styles.primaryFilterButton}
+              onPress={fetchTimesheetData}
+            >
+              <Text style={styles.buttonText}>Apply</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+        
+        {/* Improved Employee Filter with horizontal scroll */}
+        <View style={styles.filterContainer}>
+          <Text style={styles.filterSectionTitle}>Employee</Text>
+          <ScrollView 
+            horizontal 
+            showsHorizontalScrollIndicator={false} 
+            style={styles.employeeScrollContainer}
+            contentContainerStyle={styles.employeeScrollContent}
+          >
+            <TouchableOpacity
+              style={[styles.employeeFilterChip, !selectedEmployee && styles.activeFilterChip]}
+              onPress={() => {
+                setSelectedEmployee(null);
+                fetchTimesheetData();
+              }}
+            >
+              <Text style={[styles.chipText, !selectedEmployee && styles.activeChipText]}>
+                All Employees
+              </Text>
+            </TouchableOpacity>
+            
+            {employeesList.map(emp => (
+              <TouchableOpacity
+                key={emp._id}
+                style={[
+                  styles.employeeFilterChip,
+                  selectedEmployee?._id === emp._id && styles.activeFilterChip
+                ]}
+                onPress={() => {
+                  setSelectedEmployee(emp);
+                  fetchTimesheetData();
+                }}
+              >
+                <Text style={[
+                  styles.chipText,
+                  selectedEmployee?._id === emp._id && styles.activeChipText
+                ]}>
+                  {emp.name}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+        
+        {/* Add Entry Button with better positioning */}
+        <View style={styles.actionButtonContainer}>
+          <TouchableOpacity
+            style={styles.addTimeEntryButton}
+            onPress={addManualTimeEntry}
+            disabled={!selectedEmployee}
+          >
+            <Ionicons name="add-circle-outline" size={18} color="#fff" />
+            <Text style={styles.addEntryButtonText}>Add Manual Entry</Text>
+          </TouchableOpacity>
+        </View>
+        
+        {/* Timesheet Data with better visuals */}
+        {timesheetLoading ? (
+          <View style={styles.loaderContainer}>
+            <ActivityIndicator size="large" color="#000" />
+            <Text style={styles.loadingText}>Loading timesheet data...</Text>
+          </View>
+        ) : timesheetData.length === 0 ? (
+          <View style={styles.emptyStateContainer}>
+            <Ionicons name="time-outline" size={64} color="#ccc" />
+            <Text style={styles.emptyStateText}>No time entries found</Text>
+            <Text style={styles.emptyStateSubtext}>
+              {selectedEmployee ? `No records for ${selectedEmployee.name} in the selected date range.` : 
+              "Select an employee or adjust the date range to view time entries."}
+            </Text>
+          </View>
+        ) : (
+         <ScrollView style={styles.timesheetContainer}>
+  {Object.entries(organizeByEmployee()).map(([employeeId, employeeData]) => {
+    const hours = calculateHours(employeeData);
+    
+    return (
+      <View key={employeeId} style={styles.employeeTimesheetCard}>
+        <View style={styles.employeeTimesheetHeader}>
+          <Text style={styles.employeeTimesheetName}>{employeeData.name}</Text>
+          <Text style={styles.totalHours}>{hours.total} hours</Text>
+        </View>
+        
+        {Object.entries(employeeData.dates).map(([date, entries]) => (
+          <View key={date} style={styles.dateSection}>
+            <View style={styles.dateSectionHeader}>
+              <Text style={styles.dateSectionTitle}>{date}</Text>
+              <Text style={styles.dateTotalHours}>
+                {hours.byDate[date]} hours
+              </Text>
+            </View>
+            
+            {entries.map(entry => (
+              <View 
+                key={entry._id} 
+                style={[
+                  styles.timeEntry, 
+                  entry.type === 'clock-in' ? styles.clockInEntry : styles.clockOutEntry
+                ]}
+              >
+                                // Inside your timeEntry component in the ScrollView:
+                
+                <View style={styles.timeEntryInfo}>
+                  <View style={styles.timeEntryRow}>
+                    <Ionicons 
+                      name={entry.type === 'clock-in' ? 'log-in-outline' : 'log-out-outline'} 
+                      size={18} 
+                      color={entry.type === 'clock-in' ? '#4CAF50' : '#F44336'} 
+                    />
+                    <Text style={styles.timeEntryType}>
+                      {entry.type === 'clock-in' ? 'Clock In' : 'Clock Out'} {/* Type */}
+                    </Text>
+                    <Text style={{fontSize: 10, color: '#999', marginLeft: 5}}>
+                      (ID: {entry._id.substring(entry._id.length - 4)})
+                    </Text>
+                    {entry.manuallyAdded && (
+                      <View style={styles.manualBadge}>
+                        <Text style={styles.manualBadgeText}>MANUAL</Text>
+                      </View>
+                    )}
+                  </View>
+                  <Text style={styles.timeEntryTimestamp}>
+                    {new Date(entry.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                  </Text>
+                </View>
+                
+                {entry.notes && (
+                  <Text style={styles.timeEntryNotes}>{entry.notes}</Text>
+                )}
+                
+                <View style={styles.timeEntryActions}>
+                  <TouchableOpacity 
+                    style={styles.editTimeEntryButton}
+                    onPress={() => openEditTimeEntryModal(entry)}
+                  >
+                    <Ionicons name="create-outline" size={14} color="#2196F3" />
+                    <Text style={styles.editTimeEntryText}>Edit</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity 
+                    style={styles.deleteTimeEntryButton}
+                    onPress={() => deleteTimeEntry(entry._id)}
+                  >
+                    <Ionicons name="trash-outline" size={14} color="#F44336" />
+                    <Text style={styles.deleteTimeEntryText}>Delete</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ))}
+          </View>
+        ))}
+      </View>
+    );
+  })}
+</ScrollView>
+        )}
+      </View>
+    </>
+  );
+};
+
+// Add this function before renderTimesheetsTab
+
+// Calculate hours worked for each employee
+const calculateHours = (employeeData) => {
+  const hoursByDate = {};
+  let totalHours = 0;
+  
+  // Process each date's entries
+  Object.entries(employeeData.dates).forEach(([date, entries]) => {
+    let dateTotal = 0;
+    
+    // Group entries by pairs (clock-in/clock-out)
+    const clockIns = entries.filter(entry => entry.type === 'clock-in');
+    const clockOuts = entries.filter(entry => entry.type === 'clock-out');
+    
+    // Match clock-ins with clock-outs
+    clockIns.forEach(clockIn => {
+      // Find corresponding clock-out
+      const clockOut = clockOuts.find(out => 
+        out.pairedEventId === clockIn._id || 
+        clockIn.pairedEventId === out._id
+      );
+      
+      // If there's a matching pair, calculate duration
+      if (clockOut) {
+        const inTime = new Date(clockIn.timestamp).getTime();
+        const outTime = new Date(clockOut.timestamp).getTime();
+        const durationHours = (outTime - inTime) / (1000 * 60 * 60);
+        
+        // Add to date total (rounded to 2 decimal places)
+        dateTotal += Math.round(durationHours * 100) / 100;
+      }
+    });
+    
+    hoursByDate[date] = parseFloat(dateTotal.toFixed(2));
+    totalHours += dateTotal;
+  });
+  
+  return {
+    total: parseFloat(totalHours.toFixed(2)),
+    byDate: hoursByDate
+  };
+};
+
   // Handle pull-to-refresh
   const onRefresh = () => {
     setRefreshing(true)
@@ -279,6 +798,62 @@ export default function AdminPanel() {
       fetchUsers(pagination.page + 1)
     }
   }
+
+  // Update the updateTimeEntry function:
+  
+  const updateTimeEntry = async () => {
+    // Validate and parse the date/time
+    try {
+      // Validate date format
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(dateInputText)) {
+        Alert.alert("Invalid Date", "Please enter date in YYYY-MM-DD format");
+        return;
+      }
+      
+      // Validate time format
+      if (!/^\d{1,2}:\d{2}$/.test(timeInputText)) {
+        Alert.alert("Invalid Time", "Please enter time in HH:MM format");
+        return;
+      }
+      
+      // Parse date and time
+      const [year, month, day] = dateInputText.split('-').map(Number);
+      const [hours, minutes] = timeInputText.split(':').map(Number);
+      
+      // Create the timestamp
+      const timestamp = new Date(year, month - 1, day, hours, minutes);
+      
+      if (isNaN(timestamp.getTime())) {
+        Alert.alert("Invalid Date/Time", "The date or time entered is not valid");
+        return;
+      }
+      
+      // Continue with existing code...
+      setIsLoading(true);
+      const token = await AsyncStorage.getItem("token");
+      
+      const response = await axios.put(
+        `${API_URL}/api/employee/timesheet/${currentTimeEntry._id}`,
+        {
+          timestamp: timestamp.toISOString(),
+          type: currentTimeEntry.type,
+          notes: currentTimeEntry.notes || ""
+        },
+        {
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      );
+      
+      Alert.alert("Success", "Time entry updated successfully");
+      setEditTimeEntryModalVisible(false);
+      fetchTimesheetData();
+    } catch (error) {
+      console.error("Error updating time entry:", error);
+      Alert.alert("Error", "Failed to update time entry");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // Open edit modal for a user
   const openEditModal = (user) => {
@@ -1190,45 +1765,182 @@ const rejectBooking = (bookingId) => {
       {/* Tab Navigation */}
       <View style={styles.tabNavigationContainer}>
         <Text style={styles.tabNavigationTitle}>Select a Tab</Text>
-        <View style={styles.tabContainer}>
-          <TouchableOpacity
-            style={[styles.tab, activeTab === TABS.USERS && styles.activeTab]}
-            onPress={() => setActiveTab(TABS.USERS)}
-          >
-            <Ionicons name="people" size={24} color={activeTab === TABS.USERS ? "#000" : "#666"} />
-            <Text style={[styles.tabText, activeTab === TABS.USERS && styles.activeTabText]}>Users</Text>
-          </TouchableOpacity>
+        // Update the Tab Navigation in the return statement
+<View style={styles.tabContainer}>
+  <TouchableOpacity
+    style={[styles.tab, activeTab === TABS.USERS && styles.activeTab]}
+    onPress={() => setActiveTab(TABS.USERS)}
+  >
+    <Ionicons name="people" size={24} color={activeTab === TABS.USERS ? "#000" : "#666"} />
+    <Text style={[styles.tabText, activeTab === TABS.USERS && styles.activeTabText]}>Users</Text>
+  </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.tab, activeTab === TABS.AVAILABILITY && styles.activeTab]}
-            onPress={() => setActiveTab(TABS.AVAILABILITY)}
-          >
-            <Ionicons name="calendar" size={24} color={activeTab === TABS.AVAILABILITY ? "#000" : "#666"} />
-            <Text style={[styles.tabText, activeTab === TABS.AVAILABILITY && styles.activeTabText]}>Availability</Text>
-          </TouchableOpacity>
+  <TouchableOpacity
+    style={[styles.tab, activeTab === TABS.AVAILABILITY && styles.activeTab]}
+    onPress={() => setActiveTab(TABS.AVAILABILITY)}
+  >
+    <Ionicons name="calendar" size={24} color={activeTab === TABS.AVAILABILITY ? "#000" : "#666"} />
+    <Text style={[styles.tabText, activeTab === TABS.AVAILABILITY && styles.activeTabText]}>Availability</Text>
+  </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.tab, activeTab === TABS.BOOKINGS && styles.activeTab]}
-            onPress={() => setActiveTab(TABS.BOOKINGS)}
-          >
-            <Ionicons name="book" size={24} color={activeTab === TABS.BOOKINGS ? "#000" : "#666"} />
-            <Text style={[styles.tabText, activeTab === TABS.BOOKINGS && styles.activeTabText]}>Bookings</Text>
-          </TouchableOpacity>
-        </View>
+  <TouchableOpacity
+    style={[styles.tab, activeTab === TABS.BOOKINGS && styles.activeTab]}
+    onPress={() => setActiveTab(TABS.BOOKINGS)}
+  >
+    <Ionicons name="book" size={24} color={activeTab === TABS.BOOKINGS ? "#000" : "#666"} />
+    <Text style={[styles.tabText, activeTab === TABS.BOOKINGS && styles.activeTabText]}>Bookings</Text>
+  </TouchableOpacity>
+  
+  <TouchableOpacity
+    style={[styles.tab, activeTab === TABS.TIMESHEETS && styles.activeTab]}
+    onPress={() => setActiveTab(TABS.TIMESHEETS)}
+  >
+    <Ionicons name="time" size={24} color={activeTab === TABS.TIMESHEETS ? "#000" : "#666"} />
+    <Text style={[styles.tabText, activeTab === TABS.TIMESHEETS && styles.activeTabText]}>Time</Text>
+  </TouchableOpacity>
+</View>
       </View>
 
-      {/* Content based on active tab */}
-      {activeTab === TABS.AVAILABILITY ? (
-        <ScrollView contentContainerStyle={styles.scrollContent}>{renderAvailabilityTab()}</ScrollView>
-      ) : activeTab === TABS.USERS ? (
-        <View style={styles.contentContainer}>{renderUsersTab()}</View>
-      ) : (
-        <View style={styles.contentContainer}>{renderBookingsTab()}</View>
-      )}
+      
+{/* Content based on active tab */}
+{activeTab === TABS.AVAILABILITY ? (
+  <ScrollView contentContainerStyle={styles.scrollContent}>{renderAvailabilityTab()}</ScrollView>
+) : activeTab === TABS.USERS ? (
+  <View style={styles.contentContainer}>{renderUsersTab()}</View>
+) : activeTab === TABS.TIMESHEETS ? (
+  <View style={styles.contentContainer}>{renderTimesheetsTab()}</View>
+) : (
+  <View style={styles.contentContainer}>{renderBookingsTab()}</View>
+)}
 
       {/* Edit User Modal */}
       {renderEditUserModal()}
 
+// Improve the modal for editing time entries
+// Replace the entire Modal component for time entries with this enhanced version:
+
+<Modal
+  visible={editTimeEntryModalVisible}
+  animationType="slide"
+  transparent={true}
+  onRequestClose={() => setEditTimeEntryModalVisible(false)}
+>
+  <View style={styles.modalContainer}>
+    <View style={styles.enhancedModalContent}>
+      <View style={styles.modalHeader}>
+        <Text style={styles.modalTitle}>
+          {currentTimeEntry?._id === "new" ? "Add Time Entry" : "Edit Time Entry"}
+        </Text>
+        <TouchableOpacity style={styles.closeButton} onPress={() => setEditTimeEntryModalVisible(false)}>
+          <Ionicons name="close-outline" size={24} color="#000" />
+        </TouchableOpacity>
+      </View>
+
+      <ScrollView style={styles.modalScrollContent}>
+        {currentTimeEntry && (
+          <>
+            <Text style={styles.formSectionTitle}>Entry Information</Text>
+            
+            {/* Type Selection */}
+            <Text style={styles.formLabel}>Entry Type</Text>
+            <View style={styles.entryTypeContainer}>
+              <TouchableOpacity
+                style={[
+                  styles.entryTypeButton,
+                  styles.clockInButton,
+                  currentTimeEntry.type === "clock-in" && { backgroundColor: "#4CAF50" }
+                ]}
+                onPress={() => setCurrentTimeEntry({...currentTimeEntry, type: "clock-in"})}
+              >
+                <Ionicons
+                  name="log-in-outline"
+                  size={20}
+                  color={currentTimeEntry.type === "clock-in" ? "#fff" : "#4CAF50"}
+                />
+                <Text style={[
+                  styles.entryTypeText,
+                  currentTimeEntry.type === "clock-in" && { color: "#fff" }
+                ]}>
+                  Clock In
+                </Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[
+                  styles.entryTypeButton,
+                  styles.clockOutButton,
+                  currentTimeEntry.type === "clock-out" && { backgroundColor: "#F44336" }
+                ]}
+                onPress={() => setCurrentTimeEntry({...currentTimeEntry, type: "clock-out"})}
+              >
+                <Ionicons
+                  name="log-out-outline"
+                  size={20}
+                  color={currentTimeEntry.type === "clock-out" ? "#fff" : "#F44336"}
+                />
+                <Text style={[
+                  styles.entryTypeText,
+                  currentTimeEntry.type === "clock-out" && { color: "#fff" }
+                ]}>
+                  Clock Out
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Date Field - Allow direct editing */}
+           <Text style={styles.formLabel}>Date (YYYY-MM-DD)</Text>
+<TextInput
+  style={styles.enhancedFormInput}
+  value={dateInputText} 
+  onChangeText={setDateInputText}
+  placeholder="YYYY-MM-DD"
+  keyboardType="numbers-and-punctuation"
+/>
+
+            {/* Time Field - Allow direct editing */}
+            <Text style={styles.formLabel}>Time (HH:MM)</Text>
+<TextInput
+  style={styles.enhancedFormInput}
+  value={timeInputText}
+  onChangeText={setTimeInputText}
+  placeholder="HH:MM"
+  keyboardType="numbers-and-punctuation"
+/>
+
+            <Text style={styles.formLabel}>Notes</Text>
+            <TextInput
+              style={[styles.enhancedFormInput, styles.enhancedNotesInput]}
+              value={currentTimeEntry.notes}
+              onChangeText={(text) => setCurrentTimeEntry({...currentTimeEntry, notes: text})}
+              placeholder="Add notes (optional)"
+              multiline={true}
+              numberOfLines={3}
+              textAlignVertical="top"
+            />
+
+            <View style={styles.enhancedModalActions}>
+              <TouchableOpacity 
+                style={styles.cancelButton} 
+                onPress={() => setEditTimeEntryModalVisible(false)}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={styles.primaryActionButton}
+                onPress={currentTimeEntry._id === "new" ? saveNewTimeEntry : updateTimeEntry}
+              >
+                <Text style={styles.primaryActionButtonText}>
+                  {currentTimeEntry._id === "new" ? "Add Entry" : "Update Entry"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </>
+        )}
+      </ScrollView>
+    </View>
+  </View>
+</Modal>
       {/* Employee Assignment Modal */}
       <Modal
         visible={assignEmployeeModalVisible}
@@ -1297,6 +2009,7 @@ const rejectBooking = (bookingId) => {
 }
 
 // ---- STYLES ----
+// ---- STYLES ----
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -1320,41 +2033,48 @@ const styles = StyleSheet.create({
     color: "#333",
     textAlign: "center",
   },
+    // Update these style properties:
+  
   tabContainer: {
     flexDirection: "row",
     backgroundColor: "#fff",
     marginHorizontal: 20,
     marginBottom: 15,
-    borderRadius: 10,
+    borderRadius: 12,  // Slightly more rounded
     elevation: 2,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    padding: 5,
+    shadowOpacity: 0.08,  // Lighter shadow
+    shadowRadius: 3,
+    padding: 6,
+    justifyContent: "space-between"  // Even spacing
   },
+  
   tab: {
     flex: 1,
-    flexDirection: "row",
+    flexDirection: "column",  // Stack icon above text
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 12,
+    paddingVertical: 10,
     borderBottomWidth: 2,
     borderBottomColor: "transparent",
   },
+  
   activeTab: {
-    borderBottomColor: "#000",
-    borderBottomWidth: 3,
-    backgroundColor: "#f0f0f0",
+    borderBottomColor: "#2196F3",  // Blue instead of black
+    borderBottomWidth: 2,  // Thinner line
+    backgroundColor: "rgba(33, 150, 243, 0.08)",  // Very light blue background
   },
+  
   tabText: {
-    marginLeft: 5,
-    fontSize: 16,
+    marginTop: 4,  // Space between icon and text
+    fontSize: 12,  // Smaller text
     color: "#666",
     fontWeight: "500",
   },
+  
   activeTabText: {
-    color: "#000",
+    color: "#2196F3",  // Match the color scheme
     fontWeight: "600",
   },
   scrollContent: {
@@ -1610,15 +2330,18 @@ const styles = StyleSheet.create({
   },
   formLabel: {
     fontWeight: "600",
-    marginBottom: 5,
-    color: "#000",
+    marginBottom: 8,
+    color: "#333",
+    fontSize: 15,
   },
   formInput: {
     borderWidth: 1,
-    borderColor: "#ccc",
+    borderColor: "#ddd",
     borderRadius: 8,
-    padding: 10,
-    marginBottom: 15,
+    padding: 12,
+    marginBottom: 18,
+    backgroundColor: "#fafafa",
+    fontSize: 15,
   },
   switchContainer: {
     flexDirection: "row",
@@ -1898,31 +2621,477 @@ const styles = StyleSheet.create({
     right: 15,
     top: 15,
   },
-  // Add to your styles object
-allBookingsContainer: {
-  marginTop: 20,
-  marginBottom: 10,
-  borderTopWidth: 1,
-  borderTopColor: '#ddd',
-  paddingTop: 10,
-},
-debugSubtitle: {
-  fontSize: 16,
-  fontWeight: '600',
-  marginBottom: 10,
-},
-debugBookingItem: {
-  backgroundColor: '#f8f8f8',
-  padding: 10,
-  borderRadius: 5,
-  marginBottom: 8,
-},
-debugBookingTitle: {
-  fontWeight: '600',
-  marginBottom: 5,
-},
+  allBookingsContainer: {
+    marginTop: 20,
+    marginBottom: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#ddd',
+    paddingTop: 10,
+  },
+  debugSubtitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 10,
+  },
+  debugBookingItem: {
+    backgroundColor: '#f8f8f8',
+    padding: 10,
+    borderRadius: 5,
+    marginBottom: 8,
+  },
+  debugBookingTitle: {
+    fontWeight: '600',
+    marginBottom: 5,
+  },
   disabledButton: {
     backgroundColor: "#ccc",
-  }
+  },
+  
+  // Enhanced Timesheet styles
+  filterRow: {
+    marginBottom: 20,
+  },
+  filterLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    marginBottom: 8,
+    color: "#333",
+  },
+  filterSectionTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    marginBottom: 10,
+    color: "#333",
+  },
+  // Updated container for filters
+  filterContainer: {
+    marginBottom: 20,
+    backgroundColor: "#f9f9f9",
+    padding: 15,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#eee",
+  },
+  dateFilterRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+  },
+  dateFilterContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  dateInputContainer: {
+    flex: 1,
+    minWidth: 140,
+  },
+  dateInput: {
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    backgroundColor: "#fff",
+    fontSize: 14,
+  },
+  dateRangeSeparator: {
+    paddingHorizontal: 12,
+    fontSize: 16,
+    color: "#666",
+    fontWeight: "500",
+  },
+  primaryFilterButton: {
+    backgroundColor: "#2196F3",
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    marginLeft: 10,
+  },
+  buttonText: {
+    color: "#fff",
+    fontWeight: "600",
+    fontSize: 14,
+  },
+  filterButton: {
+    backgroundColor: "#000",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    marginLeft: 10,
+  },
+  filterButtonText: {
+    color: "#fff",
+    fontWeight: "500",
+  },
+  employeeFilterContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  employeeScrollContainer: {
+    marginTop: 5,
+    maxHeight: 42,
+  },
+  employeeScrollContent: {
+    paddingVertical: 4,
+  },
+  employeeScroll: {
+    marginTop: 5,
+  },
+  employeeFilterBtn: {
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 15,
+    backgroundColor: "#f0f0f0",
+    marginRight: 8,
+    marginBottom: 5,
+  },
+  employeeFilterChip: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    backgroundColor: "#f0f0f0",
+    marginRight: 10,
+    borderWidth: 1,
+    borderColor: "#e0e0e0",
+  },
+  activeFilterChip: {
+    backgroundColor: "#2196F3",
+    borderColor: "#1976D2",
+  },
+  activeFilterBtn: {
+    backgroundColor: "#2196F3",
+  },
+  chipText: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#555",
+  },
+  activeChipText: {
+    color: "#fff",
+  },
+  employeeFilterText: {
+    color: "#666",
+  },
+  activeFilterText: {
+    color: "#fff",
+  },
+  actionButtonContainer: {
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  addTimeEntryButton: {
+    flexDirection: "row",
+    backgroundColor: "#4CAF50",
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    minWidth: 200,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  addEntryButton: {
+    flexDirection: "row",
+    backgroundColor: "#2196F3",
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+    borderRadius: 5,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 15,
+  },
+  addEntryButtonText: {
+    color: "#fff",
+    fontWeight: "600",
+    fontSize: 15,
+    marginLeft: 8,
+  },
+  loaderContainer: {
+    padding: 30,
+    alignItems: "center",
+  },
+  loadingText: {
+    marginTop: 12,
+    color: "#666",
+    fontSize: 15,
+  },
+  emptyStateContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 40,
+  },
+  emptyStateText: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#666",
+    marginTop: 16,
+  },
+  emptyStateSubtext: {
+    fontSize: 14,
+    color: "#999",
+    marginTop: 8,
+    textAlign: "center",
+  },
+  timesheetContainer: {
+    marginTop: 10,
+  },
+  employeeTimesheetCard: {
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 18,
+    marginBottom: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.07,
+    shadowRadius: 5,
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: "#f0f0f0",
+  },
+  employeeTimesheetHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 15,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f0f0f0",
+  },
+  employeeTimesheetName: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#333",
+  },
+  totalHours: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#2196F3",
+  },
+  dateSection: {
+    marginBottom: 18,
+  },
+  dateSectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: "#f5f5f5",
+    borderRadius: 8,
+  },
+  dateSectionTitle: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#444",
+  },
+  dateTotalHours: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#555",
+  },
+  timeEntry: {
+    backgroundColor: "#fff",
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 8,
+    borderLeftWidth: 4,
+    borderColor: "#ccc",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  clockInEntry: {
+    borderColor: "#4CAF50",
+  },
+  clockOutEntry: {
+    borderColor: "#F44336",
+  },
+  timeEntryInfo: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  timeEntryRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  timeEntryType: {
+    fontSize: 14,
+    fontWeight: "500",
+    marginLeft: 5,
+  },
+  timeEntryTimestamp: {
+    fontSize: 14,
+    color: "#666",
+  },
+  manualBadge: {
+    backgroundColor: "#FFC107",
+    paddingVertical: 2,
+    paddingHorizontal: 6,
+    borderRadius: 10,
+  },
+  manualBadgeText: {
+    color: "#fff",
+    fontSize: 10,
+    fontWeight: "bold",
+  },
+  timeEntryNotes: {
+    color: "#666",
+    fontSize: 13,
+    marginTop: 5,
+    fontStyle: "italic",
+  },
+  timeEntryActions: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    marginTop: 8,
+  },
+  editTimeEntryButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+    borderRadius: 5,
+    backgroundColor: "#e3f2fd",
+    marginRight: 10,
+  },
+  editTimeEntryText: {
+    color: "#2196F3",
+    fontSize: 12,
+    fontWeight: "500",
+    marginLeft: 3,
+  },
+  deleteTimeEntryButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+    borderRadius: 5,
+    backgroundColor: "#ffebee",
+  },
+  deleteTimeEntryText: {
+    color: "#F44336",
+    fontSize: 12,
+    fontWeight: "500",
+    marginLeft: 3,
+  },
+  entryTypeContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 20,
+  },
+  entryTypeButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 14,
+    borderRadius: 8,
+    backgroundColor: "#f5f5f5",
+    marginHorizontal: 6,
+  },
+  entryTypeButtonActive: {
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  entryTypeText: {
+    marginLeft: 5,
+    fontWeight: "600",
+    color: "#666",
+  },
+  entryTypeTextActive: {
+    color: "#fff",
+  },
+  notesInput: {
+    height: 80,
+    textAlignVertical: "top",
+  },
 
-})
+  // Enhanced modal styles
+  enhancedModalContent: {
+    backgroundColor: "#fff",
+    margin: 16,
+    borderRadius: 16,
+    maxHeight: "80%",
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.2,
+    shadowRadius: 15,
+    elevation: 10,
+  },
+  closeButton: {
+    padding: 2,
+  },
+  formSectionTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    marginBottom: 15,
+    color: "#333",
+  },
+  dateTimeContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 10,
+  },
+  dateFieldContainer: {
+    flex: 1,
+    marginRight: 10,
+  },
+  timeFieldContainer: {
+    flex: 1,
+    marginLeft: 10,
+  },
+  enhancedFormInput: {
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 8,
+    padding: 14,
+    fontSize: 16,
+    backgroundColor: "#fcfcfc",
+  },
+  enhancedNotesInput: {
+    height: 100,
+    paddingTop: 14,
+    marginBottom: 20,
+  },
+  enhancedModalActions: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 10,
+    marginBottom: 15,
+  },
+  primaryActionButton: {
+    flex: 1,
+    backgroundColor: "#2196F3",
+    padding: 15,
+    borderRadius: 8,
+    alignItems: "center",
+    marginLeft: 10,
+  },
+  primaryActionButtonText: {
+    color: "#fff",
+    fontWeight: "600",
+    fontSize: 16,
+  },
+  clockInButton: {
+    borderWidth: 1,
+    borderColor: "#e0e0e0",
+    backgroundColor: "#e8f5e9",
+  },
+  clockOutButton: {
+    borderWidth: 1,
+    borderColor: "#e0e0e0",
+  }
+});
